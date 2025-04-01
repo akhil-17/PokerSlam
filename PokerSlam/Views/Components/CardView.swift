@@ -8,23 +8,31 @@ struct CardView: View {
     var body: some View {
         Button(action: onTap) {
             ZStack {
+                // Card background
                 RoundedRectangle(cornerRadius: 8)
-                    .fill(Color(hex: card.suit.color))
-                    .frame(width: 60, height: 40)
-                    .shadow(color: Color.black.opacity(0.3), radius: isSelected ? 4 : 2, x: 0, y: isSelected ? 4 : 1)
+                    .fill(Color(hex: "#191919"))
+                    .frame(width: 60, height: 90)
+                    .shadow(
+                        color: Color(hex: "#191919").opacity(0.3),
+                        radius: isSelected ? 4 : 2,
+                        x: 0,
+                        y: isSelected ? 4 : 1
+                    )
                     .overlay(
                         RoundedRectangle(cornerRadius: 8)
                             .stroke(isSelected ? Color(hex: "#d4d4d4") : Color.clear, lineWidth: 1)
                     )
-                    .scaleEffect(isSelected ? 1.1 : 1.0)
                 
-                VStack(spacing: 2) {
+                // Card content
+                VStack(spacing: 0) {
                     Text(card.rank.display)
-                        .font(.system(size: 24, weight: .semibold))
+                        .font(.system(size: 28, weight: .semibold, design: .rounded))
+                        .foregroundColor(Color(hex: card.suit.color))
+                    
                     Text(card.suit.rawValue)
-                        .font(.system(size: 16))
+                        .font(.system(size: 28))
+                        .foregroundColor(Color(hex: card.suit.color))
                 }
-                .foregroundColor(.white)
             }
         }
         .buttonStyle(PlainButtonStyle())
