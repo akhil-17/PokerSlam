@@ -10,23 +10,30 @@ import SwiftData
 
 @main
 struct PokerSlamApp: App {
-    var sharedModelContainer: ModelContainer = {
-        let schema = Schema([
-            Item.self,
-        ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
-
-        do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
-        } catch {
-            fatalError("Could not create ModelContainer: \(error)")
-        }
-    }()
-
+    @StateObject private var gameState = GameState()
+    
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            MainMenuView()
+                .environmentObject(gameState)
         }
-        .modelContainer(sharedModelContainer)
+    }
+}
+
+// Global state manager
+class GameState: ObservableObject {
+    @Published var currentScore: Int = 0
+    @Published var highScore: Int = 0
+    
+    init() {
+        // Load high score from UserDefaults
+        highScore = UserDefaults.standard.integer(forKey: "highScore")
+    }
+    
+    func updateHighScore() {
+        if currentScore > highScore {
+            highScore = currentScore
+            UserDefaults.standard.set(highScore, forKey: "highScore")
+        }
     }
 }
