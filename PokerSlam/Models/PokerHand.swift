@@ -190,39 +190,144 @@ struct PokerHandDetector {
         guard cards.count == 5 else { return false }
         let ranks = cards.map { $0.rank.rawValue }
         
-        // Check for consecutive ranks
-        for i in 0...(ranks.count - 2) {
-            if ranks[i + 1] - ranks[i] != 1 {
-                return false
+        // Sort ranks and handle Ace as both high and low
+        let sortedRanks = ranks.sorted()
+        
+        // Check for regular straight
+        var isRegularStraight = true
+        for i in 0...(sortedRanks.count - 2) {
+            if sortedRanks[i + 1] - sortedRanks[i] != 1 {
+                isRegularStraight = false
+                break
             }
         }
-        return true
+        if isRegularStraight { return true }
+        
+        // Check for Ace-high straight (10,J,Q,K,A)
+        if ranks.contains(1) { // Ace
+            let aceHighRanks = ranks.map { $0 == 1 ? 14 : $0 }
+            let sortedAceHighRanks = aceHighRanks.sorted()
+            
+            var isAceHighStraight = true
+            for i in 0...(sortedAceHighRanks.count - 2) {
+                if sortedAceHighRanks[i + 1] - sortedAceHighRanks[i] != 1 {
+                    isAceHighStraight = false
+                    break
+                }
+            }
+            if isAceHighStraight { return true }
+            
+            // Check for Ace as bridge (K,Q,A,2,3)
+            let aceBridgeRanks = ranks.map { $0 == 1 ? 0 : $0 } // Convert Ace to 0 for bridge case
+            let sortedAceBridgeRanks = aceBridgeRanks.sorted()
+            
+            var isAceBridgeStraight = true
+            for i in 0...(sortedAceBridgeRanks.count - 2) {
+                if sortedAceBridgeRanks[i + 1] - sortedAceBridgeRanks[i] != 1 {
+                    isAceBridgeStraight = false
+                    break
+                }
+            }
+            if isAceBridgeStraight { return true }
+        }
+        
+        return false
     }
     
     private static func isNearlyStraight(cards: [Card]) -> Bool {
         guard cards.count == 4 else { return false }
         let ranks = cards.map { $0.rank.rawValue }
         
-        // Check for consecutive ranks
-        for i in 0...(ranks.count - 2) {
-            if ranks[i + 1] - ranks[i] != 1 {
-                return false
+        // Sort ranks and handle Ace as both high and low
+        let sortedRanks = ranks.sorted()
+        
+        // Check for regular straight
+        var isRegularStraight = true
+        for i in 0...(sortedRanks.count - 2) {
+            if sortedRanks[i + 1] - sortedRanks[i] != 1 {
+                isRegularStraight = false
+                break
             }
         }
-        return true
+        if isRegularStraight { return true }
+        
+        // Check for Ace-high straight (J,Q,K,A)
+        if ranks.contains(1) { // Ace
+            let aceHighRanks = ranks.map { $0 == 1 ? 14 : $0 }
+            let sortedAceHighRanks = aceHighRanks.sorted()
+            
+            var isAceHighStraight = true
+            for i in 0...(sortedAceHighRanks.count - 2) {
+                if sortedAceHighRanks[i + 1] - sortedAceHighRanks[i] != 1 {
+                    isAceHighStraight = false
+                    break
+                }
+            }
+            if isAceHighStraight { return true }
+            
+            // Check for Ace as bridge (Q,K,A,2)
+            let aceBridgeRanks = ranks.map { $0 == 1 ? 0 : $0 } // Convert Ace to 0 for bridge case
+            let sortedAceBridgeRanks = aceBridgeRanks.sorted()
+            
+            var isAceBridgeStraight = true
+            for i in 0...(sortedAceBridgeRanks.count - 2) {
+                if sortedAceBridgeRanks[i + 1] - sortedAceBridgeRanks[i] != 1 {
+                    isAceBridgeStraight = false
+                    break
+                }
+            }
+            if isAceBridgeStraight { return true }
+        }
+        
+        return false
     }
     
     private static func isMiniStraight(cards: [Card]) -> Bool {
         guard cards.count == 3 else { return false }
         let ranks = cards.map { $0.rank.rawValue }
         
-        // Check for consecutive ranks
-        for i in 0...(ranks.count - 2) {
-            if ranks[i + 1] - ranks[i] != 1 {
-                return false
+        // Sort ranks and handle Ace as both high and low
+        let sortedRanks = ranks.sorted()
+        
+        // Check for regular straight
+        var isRegularStraight = true
+        for i in 0...(sortedRanks.count - 2) {
+            if sortedRanks[i + 1] - sortedRanks[i] != 1 {
+                isRegularStraight = false
+                break
             }
         }
-        return true
+        if isRegularStraight { return true }
+        
+        // Check for Ace-high straight (Q,K,A)
+        if ranks.contains(1) { // Ace
+            let aceHighRanks = ranks.map { $0 == 1 ? 14 : $0 }
+            let sortedAceHighRanks = aceHighRanks.sorted()
+            
+            var isAceHighStraight = true
+            for i in 0...(sortedAceHighRanks.count - 2) {
+                if sortedAceHighRanks[i + 1] - sortedAceHighRanks[i] != 1 {
+                    isAceHighStraight = false
+                    break
+                }
+            }
+            if isAceHighStraight { return true }
+            
+            // Check for Ace as bridge (K,A,2)
+            let aceBridgeRanks = ranks.map { $0 == 1 ? 0 : $0 } // Convert Ace to 0 for bridge case
+            let sortedAceBridgeRanks = aceBridgeRanks.sorted()
+            
+            var isAceBridgeStraight = true
+            for i in 0...(sortedAceBridgeRanks.count - 2) {
+                if sortedAceBridgeRanks[i + 1] - sortedAceBridgeRanks[i] != 1 {
+                    isAceBridgeStraight = false
+                    break
+                }
+            }
+            if isAceBridgeStraight { return true }
+        }
+        
+        return false
     }
     
     private static func isThreeOfAKind(cards: [Card]) -> Bool {
