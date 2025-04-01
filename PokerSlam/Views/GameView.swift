@@ -40,28 +40,62 @@ private struct GameContainer: View {
         ZStack {
             MeshGradientBackground()
             
-            VStack(spacing: 20) {
-                ScoreDisplay(score: gameState.currentScore)
-                CardGridView(viewModel: viewModel)
-                GameControls(
-                    viewModel: viewModel,
-                    gameState: gameState,
-                    showingHandReference: $showingHandReference,
-                    dismiss: dismiss
-                )
+            VStack(spacing: 0) {
+                // Custom Header
+                HStack {
+                    Button(action: { dismiss() }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.title)
+                            .foregroundColor(.white)
+                    }
+                    
+                    Spacer()
+                    
+                    VStack(spacing: 2) {
+                        Text("Score")
+                            .font(.subheadline)
+                            .foregroundColor(.white.opacity(0.8))
+                        Text("\(gameState.currentScore)")
+                            .font(.title2)
+                            .fontWeight(.bold)
+                            .foregroundColor(.white)
+                    }
+                    
+                    Spacer()
+                    
+                    Button(action: { showingHandReference = true }) {
+                        Image(systemName: "questionmark.circle.fill")
+                            .font(.title)
+                            .foregroundColor(.white)
+                    }
+                }
+                .padding()
+                
+                // Main Content
+                VStack(spacing: 20) {
+                    CardGridView(viewModel: viewModel)
+                    Spacer()
+                }
+                
+                // Play Hand Button
+                if viewModel.selectedCards.count >= 2 {
+                    Button(action: {
+                        viewModel.playHand()
+                        if let handType = viewModel.lastPlayedHand {
+                            gameState.currentScore += handType.rawValue
+                        }
+                    }) {
+                        Text("Play Hand")
+                            .font(.headline)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.black.opacity(0.3))
+                    }
+                    .padding()
+                }
             }
         }
-    }
-}
-
-private struct ScoreDisplay: View {
-    let score: Int
-    
-    var body: some View {
-        Text("Score: \(score)")
-            .font(.title2)
-            .fontWeight(.bold)
-            .foregroundColor(.white)
     }
 }
 
@@ -87,55 +121,6 @@ private struct CardGridView: View {
             }
         }
         .padding()
-    }
-}
-
-private struct GameControls: View {
-    @ObservedObject var viewModel: GameViewModel
-    @ObservedObject var gameState: GameState
-    @Binding var showingHandReference: Bool
-    let dismiss: DismissAction
-    
-    var body: some View {
-        HStack {
-            Button(action: { showingHandReference = true }) {
-                Image(systemName: "questionmark.circle.fill")
-                    .font(.title)
-                    .foregroundColor(.white)
-            }
-            
-            Spacer()
-            
-            if viewModel.selectedCards.count >= 2 {
-                Button(action: {
-                    viewModel.playHand()
-                    if let handType = viewModel.lastPlayedHand {
-                        gameState.currentScore += handType.rawValue
-                    }
-                }) {
-                    Text("Play Hand")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .padding()
-                        .background(Color.black.opacity(0.3))
-                        .cornerRadius(12)
-                }
-            } else {
-                // Invisible placeholder to maintain layout
-                Color.clear
-                    .frame(width: 100, height: 44)
-            }
-            
-            Spacer()
-            
-            Button(action: { dismiss() }) {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.title)
-                    .foregroundColor(.white)
-            }
-        }
-        .frame(height: 44) // Fixed height for the controls
-        .padding(.horizontal)
     }
 }
 

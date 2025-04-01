@@ -14,6 +14,13 @@ final class GameViewModel: ObservableObject {
     private var deck: [Card] = []
     private let selectionFeedback = UINotificationFeedbackGenerator()
     private let deselectionFeedback = UIImpactFeedbackGenerator(style: .light)
+    private var currentLineType: LineType?
+    
+    private enum LineType {
+        case row(Int)
+        case column(Int)
+        case diagonal(slope: Int, intercept: Int) // slope: 1 for top-left to bottom-right, -1 for top-right to bottom-left
+    }
     
     init() {
         setupDeck()
@@ -38,16 +45,24 @@ final class GameViewModel: ObservableObject {
                 }
             }
         }
+        updateEligibleCards() // Update eligible cards after dealing initial cards
     }
     
-    /// Selects or deselects a card based on adjacency rules
+    /// Selects or deselects a card based on straight-line rules
     /// - Parameter card: The card to select or deselect
     func selectCard(_ card: Card) {
         if selectedCards.contains(card) {
             selectedCards.remove(card)
             deselectionFeedback.impactOccurred()
+            
+            // If we're down to one card or no cards, reset the line type
+            if selectedCards.count <= 1 {
+                currentLineType = nil
+            }
+            
+            // Update eligible cards after any state changes
             updateEligibleCards()
-        } else if isCardAdjacentToSelection(card) {
+        } else if isCardEligibleForSelection(card) {
             selectedCards.insert(card)
             selectionFeedback.notificationOccurred(.success)
             updateEligibleCards()
@@ -55,6 +70,64 @@ final class GameViewModel: ObservableObject {
             // Invalid selection - play error feedback
             selectionFeedback.notificationOccurred(.error)
         }
+    }
+    
+    private func isCardEligibleForSelection(_ card: Card) -> Bool {
+        if selectedCards.isEmpty { return true }
+        
+        guard let cardPosition = findCardPosition(card) else { return false }
+        
+        // If we have a line type, check if the card is on that line
+        if let lineType = currentLineType {
+            switch lineType {
+            case .row(let row):
+                return cardPosition.row == row
+            case .column(let col):
+                return cardPosition.col == col
+            case .diagonal(let slope, let intercept):
+                // For slope 1 (top-left to bottom-right): row - col = intercept
+                // For slope -1 (top-right to bottom-left): row + col = intercept
+                if slope == 1 {
+                    return cardPosition.row - cardPosition.col == intercept
+                } else {
+                    return cardPosition.row + cardPosition.col == intercept
+                }
+            }
+        }
+        
+        // For the second card selection, determine the line type
+        if selectedCards.count == 1 {
+            guard let firstCardPosition = findCardPosition(Array(selectedCards)[0]) else { return false }
+            
+            // Check if cards are in the same row
+            if cardPosition.row == firstCardPosition.row {
+                currentLineType = .row(cardPosition.row)
+                return true
+            }
+            
+            // Check if cards are in the same column
+            if cardPosition.col == firstCardPosition.col {
+                currentLineType = .column(cardPosition.col)
+                return true
+            }
+            
+            // Check if cards are on the same diagonal
+            let topLeftIntercept = firstCardPosition.row - firstCardPosition.col
+            let topRightIntercept = firstCardPosition.row + firstCardPosition.col
+            
+            // Check if the second card is on either diagonal
+            if cardPosition.row - cardPosition.col == topLeftIntercept {
+                currentLineType = .diagonal(slope: 1, intercept: topLeftIntercept)
+                return true
+            }
+            
+            if cardPosition.row + cardPosition.col == topRightIntercept {
+                currentLineType = .diagonal(slope: -1, intercept: topRightIntercept)
+                return true
+            }
+        }
+        
+        return false
     }
     
     private func updateEligibleCards() {
@@ -72,22 +145,81 @@ final class GameViewModel: ObservableObject {
             return
         }
         
-        // Find all cards adjacent to any selected card
-        for selectedCard in selectedCards {
-            guard let position = findCardPosition(selectedCard) else { continue }
-            
-            // Check all adjacent positions (including diagonals)
-            for rowOffset in -1...1 {
-                for colOffset in -1...1 {
-                    let newRow = position.row + rowOffset
-                    let newCol = position.col + colOffset
-                    
-                    // Skip if out of bounds or if it's the same position
-                    guard newRow >= 0 && newRow < 5 && newCol >= 0 && newCol < 5,
-                          (rowOffset != 0 || colOffset != 0) else { continue }
-                    
-                    if let card = cards[newRow][newCol] {
+        // If we have a line type and more than one card selected, only show eligible cards on that line
+        if let lineType = currentLineType, selectedCards.count > 1 {
+            switch lineType {
+            case .row(let row):
+                for col in 0..<5 {
+                    if let card = cards[row][col] {
                         eligibleCards.insert(card)
+                    }
+                }
+            case .column(let col):
+                for row in 0..<5 {
+                    if let card = cards[row][col] {
+                        eligibleCards.insert(card)
+                    }
+                }
+            case .diagonal(let slope, let intercept):
+                // Check all positions in the grid
+                for row in 0..<5 {
+                    for col in 0..<5 {
+                        if slope == 1 {
+                            // For top-left to bottom-right: row - col = intercept
+                            if row - col == intercept {
+                                if let card = cards[row][col] {
+                                    eligibleCards.insert(card)
+                                }
+                            }
+                        } else {
+                            // For top-right to bottom-left: row + col = intercept
+                            if row + col == intercept {
+                                if let card = cards[row][col] {
+                                    eligibleCards.insert(card)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            // When only one card is selected, show all cards in the same row, column, and diagonals
+            guard let firstCardPosition = findCardPosition(Array(selectedCards)[0]) else { return }
+            
+            // Add all cards in the same row
+            for col in 0..<5 {
+                if let card = cards[firstCardPosition.row][col] {
+                    eligibleCards.insert(card)
+                }
+            }
+            
+            // Add all cards in the same column
+            for row in 0..<5 {
+                if let card = cards[row][firstCardPosition.col] {
+                    eligibleCards.insert(card)
+                }
+            }
+            
+            // Add all cards in the top-left to bottom-right diagonal
+            let topLeftIntercept = firstCardPosition.row - firstCardPosition.col
+            for row in 0..<5 {
+                for col in 0..<5 {
+                    if row - col == topLeftIntercept {
+                        if let card = cards[row][col] {
+                            eligibleCards.insert(card)
+                        }
+                    }
+                }
+            }
+            
+            // Add all cards in the top-right to bottom-left diagonal
+            let topRightIntercept = firstCardPosition.row + firstCardPosition.col
+            for row in 0..<5 {
+                for col in 0..<5 {
+                    if row + col == topRightIntercept {
+                        if let card = cards[row][col] {
+                            eligibleCards.insert(card)
+                        }
                     }
                 }
             }
@@ -95,27 +227,6 @@ final class GameViewModel: ObservableObject {
         
         // Remove any selected cards from eligible cards
         eligibleCards.subtract(selectedCards)
-    }
-    
-    private func isCardAdjacentToSelection(_ card: Card) -> Bool {
-        if selectedCards.isEmpty { return true }
-        
-        guard let cardPosition = findCardPosition(card) else { return false }
-        
-        for selectedCard in selectedCards {
-            guard let selectedPosition = findCardPosition(selectedCard) else { continue }
-            
-            let rowDiff = abs(cardPosition.row - selectedPosition.row)
-            let colDiff = abs(cardPosition.col - selectedPosition.col)
-            
-            if (rowDiff == 1 && colDiff == 0) || // Same column, adjacent row
-               (rowDiff == 0 && colDiff == 1) || // Same row, adjacent column
-               (rowDiff == 1 && colDiff == 1) {  // Diagonal
-                return true
-            }
-        }
-        
-        return false
     }
     
     private func findCardPosition(_ card: Card) -> (row: Int, col: Int)? {
@@ -155,7 +266,8 @@ final class GameViewModel: ObservableObject {
             }
             
             selectedCards.removeAll()
-            eligibleCards.removeAll()
+            currentLineType = nil
+            updateEligibleCards() // Update eligible cards after playing hand
             
             // Check if game is over (no valid hands possible)
             checkGameOver()

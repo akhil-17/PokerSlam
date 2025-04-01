@@ -6,8 +6,6 @@ struct CardView: View {
     let isEligible: Bool
     let onTap: () -> Void
     
-    @State private var borderOpacity: Double = 0.0
-    
     var body: some View {
         Button(action: onTap) {
             // Fixed size container to maintain grid layout
@@ -25,8 +23,7 @@ struct CardView: View {
                     .overlay(
                         RoundedRectangle(cornerRadius: 8)
                             .stroke(
-                                isSelected ? Color(hex: "#d4d4d4") :
-                                isEligible ? Color(hex: "#999999").opacity(borderOpacity) : Color.clear,
+                                isSelected ? Color(hex: "#d4d4d4") : Color.clear,
                                 lineWidth: isSelected ? 2 : 1
                             )
                     )
@@ -44,25 +41,10 @@ struct CardView: View {
             }
             .frame(width: 64, height: 94) // Fixed container size
             .contentShape(Rectangle()) // Ensure the entire area is tappable
+            .opacity(isSelected ? 1.0 : (isEligible ? 1.0 : 0.5)) // Selected cards are always 100% opacity, eligible cards are 100% opacity, non-eligible cards are 50% opacity
         }
         .buttonStyle(PlainButtonStyle())
         .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isSelected)
-        .onAppear {
-            if isEligible {
-                withAnimation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true)) {
-                    borderOpacity = 1.0
-                }
-            }
-        }
-        .onChange(of: isEligible) { newValue in
-            if newValue {
-                withAnimation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true)) {
-                    borderOpacity = 1.0
-                }
-            } else {
-                borderOpacity = 0.0
-            }
-        }
     }
 }
 
