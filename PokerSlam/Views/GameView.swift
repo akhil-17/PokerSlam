@@ -77,11 +77,13 @@ private struct CardGridView: View {
                             CardView(
                                 card: card,
                                 isSelected: viewModel.selectedCards.contains(card),
+                                isEligible: viewModel.eligibleCards.contains(card),
                                 onTap: { viewModel.selectCard(card) }
                             )
                         }
                     }
                 }
+                .frame(height: 94) // Fixed height for each row
             }
         }
         .padding()
@@ -104,11 +106,12 @@ private struct GameControls: View {
             
             Spacer()
             
-            if !viewModel.selectedCards.isEmpty {
+            if viewModel.selectedCards.count >= 2 {
                 Button(action: {
                     viewModel.playHand()
-                    // TODO: Update score based on hand value
-                    gameState.currentScore += 10
+                    if let handType = viewModel.lastPlayedHand {
+                        gameState.currentScore += handType.rawValue
+                    }
                 }) {
                     Text("Play Hand")
                         .font(.headline)
@@ -117,6 +120,10 @@ private struct GameControls: View {
                         .background(Color.black.opacity(0.3))
                         .cornerRadius(12)
                 }
+            } else {
+                // Invisible placeholder to maintain layout
+                Color.clear
+                    .frame(width: 100, height: 44)
             }
             
             Spacer()
@@ -127,6 +134,7 @@ private struct GameControls: View {
                     .foregroundColor(.white)
             }
         }
+        .frame(height: 44) // Fixed height for the controls
         .padding(.horizontal)
     }
 }
@@ -146,55 +154,87 @@ struct HandReferenceView: View {
                 
                 ScrollView {
                     VStack(alignment: .leading, spacing: 15) {
+                        // 5-card hands
                         HandReferenceRow(
                             title: "Royal Flush",
-                            description: "A, K, Q, J, 10 of same suit",
+                            description: "A, K, Q, J, 10 of same suit (e.g., A♥ K♥ Q♥ J♥ 10♥)",
                             score: "100"
                         )
                         HandReferenceRow(
                             title: "Straight Flush",
-                            description: "Five consecutive cards of same suit",
-                            score: "90"
-                        )
-                        HandReferenceRow(
-                            title: "Four of a Kind",
-                            description: "Four cards of same rank",
-                            score: "80"
+                            description: "Five consecutive cards of same suit (e.g., 9♠ 8♠ 7♠ 6♠ 5♠)",
+                            score: "95"
                         )
                         HandReferenceRow(
                             title: "Full House",
-                            description: "Three of a kind plus a pair",
-                            score: "70"
+                            description: "Three of a kind plus a pair (e.g., 3♣ 3♦ 3♥ 2♠ 2♣)",
+                            score: "90"
                         )
                         HandReferenceRow(
                             title: "Flush",
-                            description: "Five cards of same suit",
-                            score: "60"
+                            description: "Five cards of same suit (e.g., A♦ 8♦ 6♦ 4♦ 2♦)",
+                            score: "85"
                         )
                         HandReferenceRow(
                             title: "Straight",
-                            description: "Five consecutive cards",
-                            score: "50"
+                            description: "Five consecutive cards (e.g., 9♠ 8♥ 7♦ 6♣ 5♠)",
+                            score: "80"
+                        )
+                        
+                        // 4-card hands
+                        HandReferenceRow(
+                            title: "Four of a Kind",
+                            description: "Four cards of same rank (e.g., 7♠ 7♥ 7♦ 7♣)",
+                            score: "75"
                         )
                         HandReferenceRow(
-                            title: "Three of a Kind",
-                            description: "Three cards of same rank",
-                            score: "40"
+                            title: "Nearly Royal Flush",
+                            description: "J, Q, K, A of same suit (e.g., J♥ Q♥ K♥ A♥)",
+                            score: "70"
+                        )
+                        HandReferenceRow(
+                            title: "Nearly Flush",
+                            description: "Four cards of same suit (e.g., A♠ K♠ Q♠ J♠)",
+                            score: "65"
+                        )
+                        HandReferenceRow(
+                            title: "Nearly Straight",
+                            description: "Four consecutive cards (e.g., 5♠ 4♥ 3♦ 2♣)",
+                            score: "60"
                         )
                         HandReferenceRow(
                             title: "Two Pair",
-                            description: "Two different pairs",
-                            score: "30"
+                            description: "Two different pairs (e.g., J♠ J♥ Q♣ Q♦)",
+                            score: "55"
                         )
+                        
+                        // 3-card hands
+                        HandReferenceRow(
+                            title: "Three of a Kind",
+                            description: "Three cards of same rank (e.g., 4♠ 4♥ 4♦)",
+                            score: "50"
+                        )
+                        HandReferenceRow(
+                            title: "Mini Royal Flush",
+                            description: "J, Q, K of same suit (e.g., J♣ Q♣ K♣)",
+                            score: "45"
+                        )
+                        HandReferenceRow(
+                            title: "Mini Flush",
+                            description: "Three cards of same suit (e.g., A♥ K♥ Q♥)",
+                            score: "40"
+                        )
+                        HandReferenceRow(
+                            title: "Mini Straight",
+                            description: "Three consecutive cards (e.g., 3♠ 4♥ 5♦)",
+                            score: "35"
+                        )
+                        
+                        // 2-card hands
                         HandReferenceRow(
                             title: "One Pair",
-                            description: "Two cards of same rank",
-                            score: "20"
-                        )
-                        HandReferenceRow(
-                            title: "High Card",
-                            description: "Highest card when no other hand",
-                            score: "10"
+                            description: "Two cards of same rank (e.g., 2♠ 2♥)",
+                            score: "5"
                         )
                     }
                     .padding()

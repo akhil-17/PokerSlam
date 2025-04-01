@@ -1,0 +1,14 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Poker Slam - Scoring logic
+   
+1. The game should assign a score to each playable hand
+    - The highest ranking playable hand in the game has a score of 100 and the lowest ranking hand has a score of 5
+    - The game assigns a score between 5 and 100 to all the other playable hands between the highest and lowest ranking hands
+    - If a hand contains multiple hands within it, only the score for the highest ranking hand is counted (e.g., a “Full house” has a “Three of a kind” and a “Pair” in it, but only the score for the “Full house” hand is counted because it is rarer)
+    - A set of 5 cards should always rank higher than a set of 4 cards
+    - A set of 4 cards should always rank higher than a set of 3 cards
+    - A set of 3 cards should always rank higher than a set of 2 cards

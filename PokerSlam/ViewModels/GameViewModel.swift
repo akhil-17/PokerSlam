@@ -6,10 +6,14 @@ import SwiftUI
 final class GameViewModel: ObservableObject {
     @Published private(set) var cards: [[Card?]] = Array(repeating: Array(repeating: nil, count: 5), count: 5)
     @Published private(set) var selectedCards: Set<Card> = []
+    @Published private(set) var eligibleCards: Set<Card> = []
     @Published private(set) var score: Int = 0
     @Published var isGameOver = false
+    @Published var lastPlayedHand: HandType?
     
     private var deck: [Card] = []
+    private let selectionFeedback = UINotificationFeedbackGenerator()
+    private let deselectionFeedback = UIImpactFeedbackGenerator(style: .light)
     
     init() {
         setupDeck()
@@ -41,9 +45,56 @@ final class GameViewModel: ObservableObject {
     func selectCard(_ card: Card) {
         if selectedCards.contains(card) {
             selectedCards.remove(card)
+            deselectionFeedback.impactOccurred()
+            updateEligibleCards()
         } else if isCardAdjacentToSelection(card) {
             selectedCards.insert(card)
+            selectionFeedback.notificationOccurred(.success)
+            updateEligibleCards()
+        } else {
+            // Invalid selection - play error feedback
+            selectionFeedback.notificationOccurred(.error)
         }
+    }
+    
+    private func updateEligibleCards() {
+        eligibleCards.removeAll()
+        
+        if selectedCards.isEmpty {
+            // If no cards are selected, all cards are eligible
+            for row in 0..<5 {
+                for col in 0..<5 {
+                    if let card = cards[row][col] {
+                        eligibleCards.insert(card)
+                    }
+                }
+            }
+            return
+        }
+        
+        // Find all cards adjacent to any selected card
+        for selectedCard in selectedCards {
+            guard let position = findCardPosition(selectedCard) else { continue }
+            
+            // Check all adjacent positions (including diagonals)
+            for rowOffset in -1...1 {
+                for colOffset in -1...1 {
+                    let newRow = position.row + rowOffset
+                    let newCol = position.col + colOffset
+                    
+                    // Skip if out of bounds or if it's the same position
+                    guard newRow >= 0 && newRow < 5 && newCol >= 0 && newCol < 5,
+                          (rowOffset != 0 || colOffset != 0) else { continue }
+                    
+                    if let card = cards[newRow][newCol] {
+                        eligibleCards.insert(card)
+                    }
+                }
+            }
+        }
+        
+        // Remove any selected cards from eligible cards
+        eligibleCards.subtract(selectedCards)
     }
     
     private func isCardAdjacentToSelection(_ card: Card) -> Bool {
@@ -80,27 +131,35 @@ final class GameViewModel: ObservableObject {
     
     /// Plays the currently selected hand and updates the game state
     func playHand() {
-        // TODO: Implement poker hand evaluation and scoring
-        // For now, just remove selected cards and fill with new ones
-        for card in selectedCards {
-            if let position = findCardPosition(card) {
-                cards[position.row][position.col] = nil
-            }
-        }
+        let selectedCardsArray = Array(selectedCards)
         
-        // Fill empty spaces with new cards
-        for row in 0..<5 {
-            for col in 0..<5 {
-                if cards[row][col] == nil {
-                    cards[row][col] = deck.popLast()
+        // Detect the poker hand
+        if let handType = PokerHandDetector.detectHand(cards: selectedCardsArray) {
+            lastPlayedHand = handType
+            score += handType.rawValue
+            
+            // Remove selected cards
+            for card in selectedCards {
+                if let position = findCardPosition(card) {
+                    cards[position.row][position.col] = nil
                 }
             }
+            
+            // Fill empty spaces with new cards
+            for row in 0..<5 {
+                for col in 0..<5 {
+                    if cards[row][col] == nil {
+                        cards[row][col] = deck.popLast()
+                    }
+                }
+            }
+            
+            selectedCards.removeAll()
+            eligibleCards.removeAll()
+            
+            // Check if game is over (no valid hands possible)
+            checkGameOver()
         }
-        
-        selectedCards.removeAll()
-        
-        // Check if game is over (no valid hands possible)
-        checkGameOver()
     }
     
     private func checkGameOver() {
@@ -115,8 +174,10 @@ final class GameViewModel: ObservableObject {
     func resetGame() {
         cards = Array(repeating: Array(repeating: nil, count: 5), count: 5)
         selectedCards.removeAll()
+        eligibleCards.removeAll()
         score = 0
         isGameOver = false
+        lastPlayedHand = nil
         setupDeck()
         dealInitialCards()
     }
