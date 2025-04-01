@@ -161,18 +161,17 @@ final class GameViewModel: ObservableObject {
                     }
                 }
             case .diagonal(let slope, let intercept):
-                // Check all positions in the grid
+                // For slope 1 (top-left to bottom-right): row - col = intercept
+                // For slope -1 (top-right to bottom-left): row + col = intercept
                 for row in 0..<5 {
                     for col in 0..<5 {
                         if slope == 1 {
-                            // For top-left to bottom-right: row - col = intercept
                             if row - col == intercept {
                                 if let card = cards[row][col] {
                                     eligibleCards.insert(card)
                                 }
                             }
                         } else {
-                            // For top-right to bottom-left: row + col = intercept
                             if row + col == intercept {
                                 if let card = cards[row][col] {
                                     eligibleCards.insert(card)
@@ -271,6 +270,9 @@ final class GameViewModel: ObservableObject {
             
             // Check if game is over (no valid hands possible)
             checkGameOver()
+        } else {
+            // Reset lastPlayedHand if no valid hand was detected
+            lastPlayedHand = nil
         }
     }
     

@@ -18,10 +18,17 @@ struct GameView: View {
         }
         .alert("Game Over", isPresented: $viewModel.isGameOver) {
             Button("Play Again") {
+                // Update high score if current score is higher
+                if viewModel.score > gameState.currentScore {
+                    gameState.currentScore = viewModel.score
+                }
                 viewModel.resetGame()
-                gameState.currentScore = 0
             }
             Button("Main Menu") {
+                // Update high score if current score is higher
+                if viewModel.score > gameState.currentScore {
+                    gameState.currentScore = viewModel.score
+                }
                 dismiss()
             }
         } message: {
@@ -52,10 +59,10 @@ private struct GameContainer: View {
                     Spacer()
                     
                     VStack(spacing: 2) {
-                        Text("Score")
+                        Text(viewModel.score > gameState.currentScore ? "New high score!" : "Score")
                             .font(.subheadline)
                             .foregroundColor(.white.opacity(0.8))
-                        Text("\(gameState.currentScore)")
+                        Text("\(viewModel.score)")
                             .font(.title2)
                             .fontWeight(.bold)
                             .foregroundColor(.white)
@@ -81,9 +88,6 @@ private struct GameContainer: View {
                 if viewModel.selectedCards.count >= 2 {
                     Button(action: {
                         viewModel.playHand()
-                        if let handType = viewModel.lastPlayedHand {
-                            gameState.currentScore += handType.rawValue
-                        }
                     }) {
                         Text("Play Hand")
                             .font(.headline)
