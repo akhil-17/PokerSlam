@@ -32,6 +32,7 @@ struct MainMenuView: View {
         }
         .fullScreenCover(isPresented: $showingGame) {
             GameView()
+                .environmentObject(gameState)
         }
     }
 }

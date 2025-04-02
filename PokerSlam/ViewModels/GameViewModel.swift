@@ -27,7 +27,7 @@ final class GameViewModel: ObservableObject {
     @Published private(set) var eligibleCards: Set<Card> = []
     @Published private(set) var score: Int = 0
     @Published var isGameOver = false
-    @Published var lastPlayedHand: HandType?
+    @Published private(set) var lastPlayedHand: HandType?
     @Published private(set) var isAnimating = false
     @Published private(set) var currentHandText: String?
     @Published private(set) var isAnimatingHandText = false
@@ -46,6 +46,11 @@ final class GameViewModel: ObservableObject {
         case row(Int)
         case column(Int)
         case diagonal(slope: Int, intercept: Int)
+    }
+    
+    /// Returns whether cards are currently interactive
+    var areCardsInteractive: Bool {
+        !isGameOver
     }
     
     init() {
@@ -92,6 +97,8 @@ final class GameViewModel: ObservableObject {
     /// Selects or deselects a card based on straight-line rules
     /// - Parameter card: The card to select or deselect
     func selectCard(_ card: Card) {
+        guard areCardsInteractive else { return }
+        
         if selectedCards.contains(card) {
             // If only one card is selected, deselect it
             if selectedCards.count == 1 {
@@ -398,8 +405,14 @@ final class GameViewModel: ObservableObject {
             // Animate the hand text before proceeding
             isAnimatingHandText = true
             
+            // Clear selection state immediately to prevent button from reappearing
+            selectedCards.removeAll()
+            selectedCardPositions.removeAll()
+            currentLineType = nil
+            currentHandText = nil
+            
             // Get positions of selected cards
-            let emptyPositions = selectedCards.compactMap { card in
+            let emptyPositions = selectedCardsArray.compactMap { card in
                 cardPositions.first { $0.card.id == card.id }
                     .map { ($0.currentRow, $0.currentCol) }
             }
@@ -408,7 +421,7 @@ final class GameViewModel: ObservableObject {
             
             // Remove selected cards
             cardPositions.removeAll { position in
-                selectedCards.contains(position.card)
+                selectedCardsArray.contains(position.card)
             }
             
             print("🔍 Debug: Remaining cards after removal: \(cardPositions.count)")
@@ -476,12 +489,8 @@ final class GameViewModel: ObservableObject {
                 }))
             }
             
-            // Reset selection state after animation
+            // Reset animation state after animation
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                self.selectedCards.removeAll()
-                self.selectedCardPositions.removeAll()
-                self.currentLineType = nil
-                self.currentHandText = nil
                 self.isAnimatingHandText = false
                 self.updateEligibleCards()
             }

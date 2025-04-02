@@ -4,16 +4,19 @@ struct CardView: View {
     let card: Card
     let isSelected: Bool
     let isEligible: Bool
+    let isInteractive: Bool
     let onTap: () -> Void
     
     var body: some View {
         Button(action: {
-            if isSelected {
-                onTap() // Unselect if the card is already selected
-            } else if isEligible {
-                onTap() // Select the card if it's eligible
-            } else if !isSelected {
-                onTap() // Unselect all cards if tapping an ineligible card
+            if isInteractive {
+                if isSelected {
+                    onTap() // Unselect if the card is already selected
+                } else if isEligible {
+                    onTap() // Select the card if it's eligible
+                } else if !isSelected {
+                    onTap() // Unselect all cards if tapping an ineligible card
+                }
             }
         }) {
             // Fixed size container to maintain grid layout
@@ -53,6 +56,7 @@ struct CardView: View {
         }
         .buttonStyle(PlainButtonStyle())
         .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isSelected)
+        .disabled(!isInteractive)
     }
 }
 
@@ -65,18 +69,28 @@ struct CardView: View {
                 card: Card(suit: .hearts, rank: .ace),
                 isSelected: false,
                 isEligible: false,
+                isInteractive: true,
                 onTap: {}
             )
             CardView(
                 card: Card(suit: .spades, rank: .king),
                 isSelected: true,
                 isEligible: false,
+                isInteractive: true,
                 onTap: {}
             )
             CardView(
                 card: Card(suit: .diamonds, rank: .queen),
                 isSelected: false,
                 isEligible: true,
+                isInteractive: true,
+                onTap: {}
+            )
+            CardView(
+                card: Card(suit: .clubs, rank: .jack),
+                isSelected: false,
+                isEligible: false,
+                isInteractive: false,
                 onTap: {}
             )
         }

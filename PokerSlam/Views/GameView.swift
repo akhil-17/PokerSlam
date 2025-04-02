@@ -16,30 +16,13 @@ struct GameView: View {
         .sheet(isPresented: $showingHandReference) {
             HandReferenceView()
         }
-        .alert("Game Over", isPresented: $viewModel.isGameOver) {
-            Button("Play Again") {
-                // Update high score if current score is higher
-                if viewModel.score > gameState.currentScore {
-                    gameState.currentScore = viewModel.score
-                }
-                viewModel.resetGame()
-            }
-            Button("Main Menu") {
-                // Update high score if current score is higher
-                if viewModel.score > gameState.currentScore {
-                    gameState.currentScore = viewModel.score
-                }
-                dismiss()
-            }
-        } message: {
-            Text("No more valid hands possible!")
-        }
     }
 }
 
 private struct HandFormationText: View {
     let text: String?
     let isAnimating: Bool
+    let isGameOver: Bool
     
     private var handName: String? {
         guard let text = text else { return nil }
@@ -55,7 +38,13 @@ private struct HandFormationText: View {
     
     var body: some View {
         ZStack {
-            if let text = text {
+            if isGameOver {
+                Text("Game over, no more poker hands can be formed")
+                    .font(.subheadline)
+                    .foregroundColor(.white.opacity(0.8))
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+            } else if let text = text {
                 if let handName = handName, let scoreText = scoreText {
                     HStack(spacing: 4) {
                         Text(handName)
@@ -105,7 +94,18 @@ private struct GameContainer: View {
             VStack(spacing: 0) {
                 // Custom Header
                 HStack {
-                    Button(action: { dismiss() }) {
+                    Button(action: { 
+                        print("🔍 Debug: Close button tapped")
+                        print("🔍 Debug: Current score: \(viewModel.score), High score: \(gameState.currentScore)")
+                        // Update high score if current score is higher
+                        if viewModel.score > gameState.currentScore {
+                            print("🔍 Debug: Updating high score to \(viewModel.score)")
+                            gameState.currentScore = viewModel.score
+                        }
+                        print("🔍 Debug: Calling dismiss()")
+                        dismiss()
+                        print("🔍 Debug: After dismiss() call")
+                    }) {
                         Image(systemName: "xmark.circle.fill")
                             .font(.title)
                             .foregroundColor(.white)
@@ -135,15 +135,17 @@ private struct GameContainer: View {
                 
                 // Main Content
                 VStack(spacing: 0) {
-                    if showIntroMessage && viewModel.currentHandText == nil {
+                    if showIntroMessage && viewModel.currentHandText == nil && !viewModel.isGameOver {
                         HandFormationText(
                             text: "Tap cards and select cards next to them to create poker hands in rows, columns, or diagonals",
-                            isAnimating: false
+                            isAnimating: false,
+                            isGameOver: false
                         )
                     } else {
                         HandFormationText(
                             text: viewModel.currentHandText,
-                            isAnimating: viewModel.isAnimatingHandText
+                            isAnimating: viewModel.isAnimatingHandText,
+                            isGameOver: viewModel.isGameOver
                         )
                     }
                     
@@ -154,23 +156,42 @@ private struct GameContainer: View {
                             }
                         }
                     
-                    // Fixed height container for Play Hand button
-                    if viewModel.selectedCards.count >= 2 {
-                        Button(action: {
-                            viewModel.playHand()
-                        }) {
-                            Text("Play Hand")
-                                .font(.headline)
-                                .foregroundColor(.white)
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color.black.opacity(0.3))
+                    // Fixed height container for bottom buttons
+                    ZStack {
+                        if viewModel.isGameOver {
+                            Button(action: {
+                                // Update high score if current score is higher
+                                if viewModel.score > gameState.currentScore {
+                                    gameState.currentScore = viewModel.score
+                                }
+                                viewModel.resetGame()
+                            }) {
+                                Text("Play Again")
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .padding()
+                                    .background(Color.black.opacity(0.3))
+                            }
+                            .padding()
+                        } else if viewModel.selectedCards.count >= 2 {
+                            Button(action: {
+                                viewModel.playHand()
+                            }) {
+                                Text("Play Hand")
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .padding()
+                                    .background(Color.black.opacity(0.3))
+                            }
+                            .padding()
+                        } else {
+                            Color.clear
+                                .frame(height: 60) // Approximate height of the buttons with padding
                         }
-                        .padding()
-                    } else {
-                        Color.clear
-                            .frame(height: 60) // Approximate height of the Play Hand button with padding
                     }
+                    .frame(height: 60) // Fixed height to prevent layout shifts
                     
                     Spacer()
                 }
@@ -192,6 +213,7 @@ private struct CardGridView: View {
                                 card: cardPosition.card,
                                 isSelected: viewModel.selectedCards.contains(cardPosition.card),
                                 isEligible: viewModel.eligibleCards.contains(cardPosition.card),
+                                isInteractive: viewModel.areCardsInteractive,
                                 onTap: { viewModel.selectCard(cardPosition.card) }
                             )
                             .offset(
@@ -214,7 +236,7 @@ private struct CardGridView: View {
         .padding()
         .contentShape(Rectangle())
         .onTapGesture {
-            if !viewModel.selectedCards.isEmpty {
+            if !viewModel.selectedCards.isEmpty && viewModel.areCardsInteractive {
                 viewModel.unselectAllCards()
             }
         }
