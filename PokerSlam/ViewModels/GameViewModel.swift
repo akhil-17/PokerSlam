@@ -201,7 +201,12 @@ final class GameViewModel: ObservableObject {
                     guard let firstPosition = selectedCardPositions.first,
                           let lastPosition = selectedCardPositions.last else { return }
                     
-                    let adjacentCols = [firstPosition.col - 1, lastPosition.col + 1]
+                    // Get all positions between first and last (inclusive)
+                    let startCol = min(firstPosition.col, lastPosition.col)
+                    let endCol = max(firstPosition.col, lastPosition.col)
+                    
+                    // Add adjacent positions at both ends
+                    let adjacentCols = [startCol - 1, endCol + 1]
                     for col in adjacentCols where col >= 0 && col < 5 {
                         if let card = cards[row][col] {
                             eligibleCards.insert(card)
@@ -223,7 +228,12 @@ final class GameViewModel: ObservableObject {
                     guard let firstPosition = selectedCardPositions.first,
                           let lastPosition = selectedCardPositions.last else { return }
                     
-                    let adjacentRows = [firstPosition.row - 1, lastPosition.row + 1]
+                    // Get all positions between first and last (inclusive)
+                    let startRow = min(firstPosition.row, lastPosition.row)
+                    let endRow = max(firstPosition.row, lastPosition.row)
+                    
+                    // Add adjacent positions at both ends
+                    let adjacentRows = [startRow - 1, endRow + 1]
                     for row in adjacentRows where row >= 0 && row < 5 {
                         if let card = cards[row][col] {
                             eligibleCards.insert(card)
@@ -264,16 +274,15 @@ final class GameViewModel: ObservableObject {
                     guard let firstPosition = selectedCardPositions.first,
                           let lastPosition = selectedCardPositions.last else { return }
                     
-                    let adjacentPositions = [
-                        (row: firstPosition.row - 1, col: firstPosition.col - 1),
-                        (row: firstPosition.row - 1, col: firstPosition.col + 1),
-                        (row: firstPosition.row + 1, col: firstPosition.col - 1),
-                        (row: firstPosition.row + 1, col: firstPosition.col + 1),
-                        (row: lastPosition.row - 1, col: lastPosition.col - 1),
-                        (row: lastPosition.row - 1, col: lastPosition.col + 1),
-                        (row: lastPosition.row + 1, col: lastPosition.col - 1),
-                        (row: lastPosition.row + 1, col: lastPosition.col + 1)
-                    ]
+                    // Calculate the direction of the diagonal
+                    let rowStep = (lastPosition.row - firstPosition.row).signum()
+                    let colStep = (lastPosition.col - firstPosition.col).signum()
+                    
+                    // Get positions adjacent to both ends
+                    let firstAdjacent = (row: firstPosition.row - rowStep, col: firstPosition.col - colStep)
+                    let lastAdjacent = (row: lastPosition.row + rowStep, col: lastPosition.col + colStep)
+                    
+                    let adjacentPositions = [firstAdjacent, lastAdjacent]
                     
                     for position in adjacentPositions where 
                         position.row >= 0 && position.row < 5 && 
