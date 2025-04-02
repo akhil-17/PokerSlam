@@ -41,6 +41,7 @@ private struct GameContainer: View {
     @ObservedObject var viewModel: GameViewModel
     @ObservedObject var gameState: GameState
     @Binding var showingHandReference: Bool
+    @State private var showIntroMessage = true
     let dismiss: DismissAction
     
     var body: some View {
@@ -79,24 +80,46 @@ private struct GameContainer: View {
                 .padding()
                 
                 // Main Content
-                VStack(spacing: 20) {
-                    CardGridView(viewModel: viewModel)
-                    Spacer()
-                }
-                
-                // Play Hand Button
-                if viewModel.selectedCards.count >= 2 {
-                    Button(action: {
-                        viewModel.playHand()
-                    }) {
-                        Text("Play Hand")
-                            .font(.headline)
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.black.opacity(0.3))
+                VStack(spacing: 0) {
+                    // Fixed height container for intro message
+                    ZStack {
+                        if showIntroMessage {
+                            Text("Tap cards and select cards next to them to create poker hands in rows, columns, or diagonals")
+                                .font(.subheadline)
+                                .foregroundColor(.white.opacity(0.8))
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal)
+                        }
                     }
-                    .padding()
+                    .frame(height: 40)
+                    .padding(.bottom, 16)
+                    
+                    CardGridView(viewModel: viewModel)
+                        .onChange(of: viewModel.selectedCards.count) { count in
+                            if count > 0 {
+                                showIntroMessage = false
+                            }
+                        }
+                    
+                    // Fixed height container for Play Hand button
+                    if viewModel.selectedCards.count >= 2 {
+                        Button(action: {
+                            viewModel.playHand()
+                        }) {
+                            Text("Play Hand")
+                                .font(.headline)
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color.black.opacity(0.3))
+                        }
+                        .padding()
+                    } else {
+                        Color.clear
+                            .frame(height: 60) // Approximate height of the Play Hand button with padding
+                    }
+                    
+                    Spacer()
                 }
             }
         }
