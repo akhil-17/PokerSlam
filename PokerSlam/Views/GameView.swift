@@ -125,6 +125,13 @@ private struct CardGridView: View {
             }
         }
         .padding()
+        .contentShape(Rectangle())
+        .onTapGesture {
+            // Only unselect if there are selected cards
+            if !viewModel.selectedCards.isEmpty {
+                viewModel.unselectAllCards()
+            }
+        }
     }
 }
 

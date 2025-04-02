@@ -7,7 +7,15 @@ struct CardView: View {
     let onTap: () -> Void
     
     var body: some View {
-        Button(action: onTap) {
+        Button(action: {
+            if isSelected {
+                onTap() // Unselect if the card is already selected
+            } else if isEligible {
+                onTap() // Select the card if it's eligible
+            } else if !isSelected {
+                onTap() // Unselect all cards if tapping an ineligible card
+            }
+        }) {
             // Fixed size container to maintain grid layout
             ZStack {
                 // Card background
