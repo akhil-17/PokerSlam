@@ -31,8 +31,12 @@ final class GameViewModel: ObservableObject {
     @Published private(set) var isAnimating = false
     
     private var deck: [Card] = []
-    private let selectionFeedback = UINotificationFeedbackGenerator()
+    private let selectionFeedback = UISelectionFeedbackGenerator()
     private let deselectionFeedback = UIImpactFeedbackGenerator(style: .light)
+    private let errorFeedback = UINotificationFeedbackGenerator()
+    private let successFeedback = UINotificationFeedbackGenerator()
+    private let shiftFeedback = UIImpactFeedbackGenerator(style: .light)
+    private let newCardFeedback = UIImpactFeedbackGenerator(style: .soft)
     private var currentLineType: LineType?
     private var selectedCardPositions: [(row: Int, col: Int)] = []
     
@@ -106,14 +110,14 @@ final class GameViewModel: ObservableObject {
             if let position = findCardPosition(card) {
                 selectedCardPositions.append(position)
             }
-            selectionFeedback.notificationOccurred(.success)
+            selectionFeedback.selectionChanged()
             updateEligibleCards()
         } else if !selectedCards.isEmpty {
             // If tapping an ineligible card with cards selected, unselect all
             unselectAllCards()
         } else {
             // Invalid selection - play error feedback
-            selectionFeedback.notificationOccurred(.error)
+            errorFeedback.notificationOccurred(.error)
         }
     }
     
@@ -370,6 +374,7 @@ final class GameViewModel: ObservableObject {
         if let handType = PokerHandDetector.detectHand(cards: selectedCardsArray) {
             lastPlayedHand = handType
             score += handType.rawValue
+            successFeedback.notificationOccurred(.success)
             
             // Get positions of selected cards
             let emptyPositions = selectedCards.compactMap { card in
@@ -387,9 +392,10 @@ final class GameViewModel: ObservableObject {
             print("🔍 Debug: Remaining cards after removal: \(cardPositions.count)")
             
             // First, shift existing cards down
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.7), ({
+                shiftFeedback.impactOccurred()
                 // Update target positions for shifting
-                for (col, positions) in Dictionary(grouping: emptyPositions) { pos in pos.1 } {
+                for (col, positions) in Dictionary(grouping: emptyPositions, by: { pos in pos.1 }) {
                     let highestEmptyRow = positions.map { $0.0 }.min() ?? 0
                     print("🔍 Debug: Column \(col) - Highest empty row: \(highestEmptyRow)")
                     
@@ -413,11 +419,11 @@ final class GameViewModel: ObservableObject {
                     cardPositions[index].currentRow = cardPositions[index].targetRow
                     cardPositions[index].currentCol = cardPositions[index].targetCol
                 }
-            }
+            }))
             
             // Calculate new empty positions at the top of each column
             var newEmptyPositions: [(Int, Int)] = []
-            for (col, positions) in Dictionary(grouping: emptyPositions) { pos in pos.1 } {
+            for (col, positions) in Dictionary(grouping: emptyPositions, by: { pos in pos.1 }) {
                 let cardsRemovedFromColumn = positions.count
                 // Add positions from top down for the number of cards removed
                 for row in 0..<cardsRemovedFromColumn {
@@ -427,7 +433,8 @@ final class GameViewModel: ObservableObject {
             
             // Then, after animation completes, add new cards to the new empty positions
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.7), ({
+                    self.newCardFeedback.impactOccurred()
                     print("🔍 Debug: Starting to add new cards")
                     print("🔍 Debug: Remaining cards in deck: \(self.deck.count)")
                     print("🔍 Debug: New empty positions: \(newEmptyPositions)")
@@ -444,7 +451,7 @@ final class GameViewModel: ObservableObject {
                     
                     // Update eligible cards after adding new cards
                     self.updateEligibleCards()
-                }
+                }))
             }
             
             // Reset selection state
@@ -457,6 +464,7 @@ final class GameViewModel: ObservableObject {
             checkGameOver()
         } else {
             lastPlayedHand = nil
+            errorFeedback.notificationOccurred(.error)
         }
     }
     
