@@ -25,6 +25,26 @@ enum HandType: Int, Comparable {
     // 2-card hands (lowest scoring)
     case onePair = 5
     
+    var displayName: String {
+        switch self {
+        case .royalFlush: return "Royal flush"
+        case .straightFlush: return "Straight flush"
+        case .fullHouse: return "Full house"
+        case .flush: return "Flush"
+        case .straight: return "Straight"
+        case .fourOfAKind: return "Four of a kind"
+        case .nearlyRoyalFlush: return "Nearly royal flush"
+        case .nearlyFlush: return "Nearly flush"
+        case .nearlyStraight: return "Nearly straight"
+        case .twoPair: return "Two pair"
+        case .threeOfAKind: return "Three of a kind"
+        case .miniRoyalFlush: return "Mini royal flush"
+        case .miniFlush: return "Mini flush"
+        case .miniStraight: return "Mini straight"
+        case .onePair: return "One pair"
+        }
+    }
+    
     static func < (lhs: HandType, rhs: HandType) -> Bool {
         lhs.rawValue < rhs.rawValue
     }

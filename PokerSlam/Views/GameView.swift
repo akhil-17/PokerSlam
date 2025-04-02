@@ -37,6 +37,60 @@ struct GameView: View {
     }
 }
 
+private struct HandFormationText: View {
+    let text: String?
+    let isAnimating: Bool
+    
+    private var handName: String? {
+        guard let text = text else { return nil }
+        return text.components(separatedBy: " +").first
+    }
+    
+    private var scoreText: String? {
+        guard let text = text else { return nil }
+        let components = text.components(separatedBy: " +")
+        guard components.count > 1 else { return nil }
+        return "+" + components[1]
+    }
+    
+    var body: some View {
+        ZStack {
+            if let text = text {
+                if let handName = handName, let scoreText = scoreText {
+                    HStack(spacing: 4) {
+                        Text(handName)
+                            .font(.subheadline)
+                            .foregroundColor(.white.opacity(0.8))
+                        Text(scoreText)
+                            .font(.subheadline)
+                            .fontWeight(.bold)
+                            .foregroundColor(.white.opacity(0.8))
+                    }
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+                    .scaleEffect(isAnimating ? 1.2 : 1.0)
+                    .offset(y: isAnimating ? -20 : 0)
+                    .opacity(isAnimating ? 0 : 1)
+                    .animation(.easeOut(duration: 0.3), value: isAnimating)
+                } else {
+                    Text(text)
+                        .font(.subheadline)
+                        .foregroundColor(.white.opacity(0.8))
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                        .scaleEffect(isAnimating ? 1.2 : 1.0)
+                        .offset(y: isAnimating ? -20 : 0)
+                        .opacity(isAnimating ? 0 : 1)
+                        .animation(.easeOut(duration: 0.3), value: isAnimating)
+                }
+            }
+        }
+        .frame(minHeight: 40)
+        .padding(.top, 8)
+        .padding(.bottom, 8)
+    }
+}
+
 private struct GameContainer: View {
     @ObservedObject var viewModel: GameViewModel
     @ObservedObject var gameState: GameState
@@ -81,22 +135,21 @@ private struct GameContainer: View {
                 
                 // Main Content
                 VStack(spacing: 0) {
-                    // Fixed height container for intro message
-                    ZStack {
-                        if showIntroMessage {
-                            Text("Tap cards and select cards next to them to create poker hands in rows, columns, or diagonals")
-                                .font(.subheadline)
-                                .foregroundColor(.white.opacity(0.8))
-                                .multilineTextAlignment(.center)
-                                .padding(.horizontal)
-                        }
+                    if showIntroMessage && viewModel.currentHandText == nil {
+                        HandFormationText(
+                            text: "Tap cards and select cards next to them to create poker hands in rows, columns, or diagonals",
+                            isAnimating: false
+                        )
+                    } else {
+                        HandFormationText(
+                            text: viewModel.currentHandText,
+                            isAnimating: viewModel.isAnimatingHandText
+                        )
                     }
-                    .frame(height: 40)
-                    .padding(.bottom, 16)
                     
                     CardGridView(viewModel: viewModel)
-                        .onChange(of: viewModel.selectedCards.count) { count in
-                            if count > 0 {
+                        .onChange(of: viewModel.selectedCards.count) { oldValue, newValue in
+                            if newValue > 0 {
                                 showIntroMessage = false
                             }
                         }

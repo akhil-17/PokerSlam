@@ -29,6 +29,8 @@ final class GameViewModel: ObservableObject {
     @Published var isGameOver = false
     @Published var lastPlayedHand: HandType?
     @Published private(set) var isAnimating = false
+    @Published private(set) var currentHandText: String?
+    @Published private(set) var isAnimatingHandText = false
     
     private var deck: [Card] = []
     private let selectionFeedback = UISelectionFeedbackGenerator()
@@ -105,6 +107,7 @@ final class GameViewModel: ObservableObject {
                 currentLineType = nil
             }
             updateEligibleCards()
+            updateCurrentHandText()
         } else if isCardEligibleForSelection(card) {
             selectedCards.insert(card)
             if let position = findCardPosition(card) {
@@ -112,6 +115,7 @@ final class GameViewModel: ObservableObject {
             }
             selectionFeedback.selectionChanged()
             updateEligibleCards()
+            updateCurrentHandText()
         } else if !selectedCards.isEmpty {
             // If tapping an ineligible card with cards selected, unselect all
             unselectAllCards()
@@ -126,6 +130,7 @@ final class GameViewModel: ObservableObject {
         selectedCards.removeAll()
         selectedCardPositions.removeAll()
         currentLineType = nil
+        currentHandText = nil
         deselectionFeedback.impactOccurred()
         updateEligibleCards()
     }
@@ -366,6 +371,20 @@ final class GameViewModel: ObservableObject {
             .map { ($0.currentRow, $0.currentCol) }
     }
     
+    private func updateCurrentHandText() {
+        guard !selectedCards.isEmpty else {
+            currentHandText = nil
+            return
+        }
+        
+        let selectedCardsArray = Array(selectedCards)
+        if let handType = PokerHandDetector.detectHand(cards: selectedCardsArray) {
+            currentHandText = "\(handType.displayName) +\(handType.rawValue)"
+        } else {
+            currentHandText = nil
+        }
+    }
+    
     /// Plays the currently selected hand and updates the game state
     func playHand() {
         let selectedCardsArray = Array(selectedCards)
@@ -375,6 +394,9 @@ final class GameViewModel: ObservableObject {
             lastPlayedHand = handType
             score += handType.rawValue
             successFeedback.notificationOccurred(.success)
+            
+            // Animate the hand text before proceeding
+            isAnimatingHandText = true
             
             // Get positions of selected cards
             let emptyPositions = selectedCards.compactMap { card in
@@ -454,11 +476,15 @@ final class GameViewModel: ObservableObject {
                 }))
             }
             
-            // Reset selection state
-            selectedCards.removeAll()
-            selectedCardPositions.removeAll()
-            currentLineType = nil
-            updateEligibleCards()
+            // Reset selection state after animation
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                self.selectedCards.removeAll()
+                self.selectedCardPositions.removeAll()
+                self.currentLineType = nil
+                self.currentHandText = nil
+                self.isAnimatingHandText = false
+                self.updateEligibleCards()
+            }
             
             // Check if game is over
             checkGameOver()
