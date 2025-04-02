@@ -111,23 +111,33 @@ private struct CardGridView: View {
             ForEach(0..<5, id: \.self) { row in
                 HStack(spacing: 8) {
                     ForEach(0..<5, id: \.self) { col in
-                        if let card = viewModel.cards[row][col] {
+                        if let cardPosition = viewModel.cardPositions.first(where: { $0.currentRow == row && $0.currentCol == col }) {
                             CardView(
-                                card: card,
-                                isSelected: viewModel.selectedCards.contains(card),
-                                isEligible: viewModel.eligibleCards.contains(card),
-                                onTap: { viewModel.selectCard(card) }
+                                card: cardPosition.card,
+                                isSelected: viewModel.selectedCards.contains(cardPosition.card),
+                                isEligible: viewModel.eligibleCards.contains(cardPosition.card),
+                                onTap: { viewModel.selectCard(cardPosition.card) }
                             )
+                            .offset(
+                                x: CGFloat(cardPosition.currentCol - cardPosition.targetCol) * 68,
+                                y: CGFloat(cardPosition.currentRow - cardPosition.targetRow) * 102
+                            )
+                            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: cardPosition.targetRow)
+                            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: cardPosition.targetCol)
+                            .transition(.opacity.combined(with: .scale))
+                        } else {
+                            // Empty space
+                            Color.clear
+                                .frame(width: 64, height: 94)
                         }
                     }
                 }
-                .frame(height: 94) // Fixed height for each row
+                .frame(height: 94)
             }
         }
         .padding()
         .contentShape(Rectangle())
         .onTapGesture {
-            // Only unselect if there are selected cards
             if !viewModel.selectedCards.isEmpty {
                 viewModel.unselectAllCards()
             }
