@@ -363,7 +363,9 @@ final class GameViewModel: ObservableObject {
                 }
             }
             
+            // Reset all selection state
             selectedCards.removeAll()
+            selectedCardPositions.removeAll()
             currentLineType = nil
             updateEligibleCards() // Update eligible cards after playing hand
             
