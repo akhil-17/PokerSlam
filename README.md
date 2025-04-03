@@ -4,19 +4,31 @@ A modern iOS game that combines poker hand recognition with puzzle mechanics, bu
 
 ## 🎮 Overview
 
-PokerSlam is an engaging puzzle game where players create poker hands by selecting cards in a 5x5 grid. The game challenges players to form valid poker hands in rows, columns, or diagonals while managing their card selection strategically. Players can create various poker hands like pairs, straights, flushes, and more to earn points.
+PokerSlam is an engaging puzzle game where players create poker hands by selecting cards in a 5x5 grid. The game challenges players to form valid poker hands by selecting adjacent cards while managing their card selection strategically. Players can create various poker hands like pairs, straights, flushes, and more to earn points.
 
 ### Key Features
 - 5x5 grid of playing cards
-- Support for forming poker hands in rows, columns, and diagonals
+- Support for forming poker hands with adjacent cards
 - Real-time hand recognition and scoring
 - Haptic feedback for interactions
 - High score tracking
 - Hand reference guide
 - Smooth animations and transitions
 - Modern, clean UI design
+- Intelligent card adjacency rules
+- Dynamic card shifting and filling
 
-## 🛠 Technology Stack
+### Game Rules
+- Cards must be adjacent to be selected
+- Adjacent means:
+  - Same column, one row apart
+  - Adjacent columns, one row apart (with no empty columns between)
+- Empty columns break adjacency
+- Cards shift down to fill empty positions
+- New cards are added from the top
+- Game ends when no valid hands can be formed with remaining cards
+
+## �� Technology Stack
 
 - **Framework**: SwiftUI
 - **Architecture**: MVVM (Model-View-ViewModel)

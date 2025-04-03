@@ -55,6 +55,7 @@ struct CardGridView: View {
 - Supports current and target positions
 - Implements smooth transitions
 - Handles empty space management
+- Manages card shifting and filling
 
 ### 2. Card Selection System
 
@@ -77,11 +78,77 @@ func selectCard(_ card: Card) {
 
 #### Selection Rules
 - Cards must be adjacent
-- Must form straight lines (row/column/diagonal)
+- Adjacent means:
+  - Same column, one row apart
+  - Adjacent columns, one row apart (with no empty columns between)
+- Empty columns break adjacency
 - Maximum 5 cards per selection
 - Real-time validation
 
-### 3. Hand Recognition System
+### 3. Card Shifting System
+
+#### Shifting Logic
+```swift
+// Process each column independently
+for col in 0..<5 {
+    let columnCards = cardPositions.filter { $0.currentCol == col }
+        .sorted { $0.currentRow > $1.currentRow }
+    
+    // Calculate empty positions
+    let emptyPositions = columnEmptyPositions.filter { $0 > cardPosition.currentRow }
+    
+    // Shift cards down
+    for cardPosition in columnCards {
+        if let cardIndex = cardPositions.firstIndex(where: { $0.id == cardPosition.id }) {
+            let newRow = cardPosition.currentRow + emptyCount
+            cardPositions[cardIndex].targetRow = newRow
+        }
+    }
+}
+```
+- Processes columns independently
+- Sorts cards from bottom to top
+- Calculates empty positions
+- Shifts cards down to fill gaps
+- Maintains column integrity
+
+#### New Card Filling
+- Adds new cards from the top
+- Fills empty positions in order
+- Maintains grid completeness
+- Handles deck exhaustion
+
+### 4. Game Over Detection
+
+#### End Game Logic
+```swift
+private func checkGameOver() {
+    // Check if there are any valid poker hands possible
+    let allCards = cardPositions.map { $0.card }
+    
+    // If deck is empty and grid is incomplete
+    if deck.isEmpty && cardPositions.count < 25 {
+        // Check all possible combinations
+        for size in 2...5 {
+            let combinations = allCards.combinations(ofCount: size)
+            for cards in combinations {
+                // Check if cards can be selected according to adjacency rules
+                if canSelectCards(cards), let handType = PokerHandDetector.detectHand(cards: cards) {
+                    isGameOver = false
+                    return
+                }
+            }
+        }
+        isGameOver = true
+    }
+}
+```
+- Checks for valid hands
+- Considers adjacency rules
+- Handles empty deck scenario
+- Validates remaining cards
+
+### 5. Hand Recognition System
 
 #### Hand Types
 - Pair
@@ -99,7 +166,7 @@ func selectCard(_ card: Card) {
 - Hand ranking system
 - Visual feedback
 
-### 4. Scoring System
+### 6. Scoring System
 
 #### Score Calculation
 ```swift
@@ -120,7 +187,7 @@ class GameState: ObservableObject {
 - Persistent storage
 - Real-time updates
 
-### 5. Animation System
+### 7. Animation System
 
 #### Card Animations
 ```swift
