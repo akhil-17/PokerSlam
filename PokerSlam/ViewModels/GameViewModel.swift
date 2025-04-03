@@ -19,6 +19,25 @@ struct CardPosition: Identifiable {
     }
 }
 
+extension Array {
+    func combinations(ofCount count: Int) -> [[Element]] {
+        guard count > 0 && count <= self.count else { return [] }
+        
+        if count == 1 {
+            return self.map { [$0] }
+        }
+        
+        var result: [[Element]] = []
+        for i in 0...(self.count - count) {
+            let first = self[i]
+            let remaining = Array(self[(i + 1)...])
+            let subCombinations = remaining.combinations(ofCount: count - 1)
+            result.append(contentsOf: subCombinations.map { [first] + $0 })
+        }
+        return result
+    }
+}
+
 /// ViewModel responsible for managing the game state and logic
 @MainActor
 final class GameViewModel: ObservableObject {
@@ -39,14 +58,7 @@ final class GameViewModel: ObservableObject {
     private let successFeedback = UINotificationFeedbackGenerator()
     private let shiftFeedback = UIImpactFeedbackGenerator(style: .light)
     private let newCardFeedback = UIImpactFeedbackGenerator(style: .soft)
-    private var currentLineType: LineType?
     private var selectedCardPositions: [(row: Int, col: Int)] = []
-    
-    private enum LineType {
-        case row(Int)
-        case column(Int)
-        case diagonal(slope: Int, intercept: Int)
-    }
     
     /// Returns whether cards are currently interactive
     var areCardsInteractive: Bool {
@@ -94,7 +106,7 @@ final class GameViewModel: ObservableObject {
         return grid
     }
     
-    /// Selects or deselects a card based on straight-line rules
+    /// Selects or deselects a card based on adjacency rules
     /// - Parameter card: The card to select or deselect
     func selectCard(_ card: Card) {
         guard areCardsInteractive else { return }
@@ -105,17 +117,15 @@ final class GameViewModel: ObservableObject {
                 selectedCards.remove(card)
                 selectedCardPositions.removeAll()
                 deselectionFeedback.impactOccurred()
-                currentLineType = nil
             } else {
                 // If multiple cards are selected, deselect all
                 selectedCards.removeAll()
                 selectedCardPositions.removeAll()
                 deselectionFeedback.impactOccurred()
-                currentLineType = nil
             }
             updateEligibleCards()
             updateCurrentHandText()
-        } else if isCardEligibleForSelection(card) {
+        } else if isCardEligibleForSelection(card) && selectedCards.count < 5 {
             selectedCards.insert(card)
             if let position = findCardPosition(card) {
                 selectedCardPositions.append(position)
@@ -136,7 +146,6 @@ final class GameViewModel: ObservableObject {
     func unselectAllCards() {
         selectedCards.removeAll()
         selectedCardPositions.removeAll()
-        currentLineType = nil
         currentHandText = nil
         deselectionFeedback.impactOccurred()
         updateEligibleCards()
@@ -147,88 +156,20 @@ final class GameViewModel: ObservableObject {
         
         guard let cardPosition = findCardPosition(card) else { return false }
         
-        // If we have a line type, check if the card is on that line and adjacent
-        if let lineType = currentLineType {
-            switch lineType {
-            case .row(let row):
-                guard cardPosition.row == row else { return false }
-                // Check if card is adjacent to either end of the selection
-                if let firstPosition = selectedCardPositions.first,
-                   let lastPosition = selectedCardPositions.last {
-                    return abs(cardPosition.col - firstPosition.col) == 1 || 
-                           abs(cardPosition.col - lastPosition.col) == 1
-                }
-            case .column(let col):
-                guard cardPosition.col == col else { return false }
-                // Check if card is adjacent to either end of the selection
-                if let firstPosition = selectedCardPositions.first,
-                   let lastPosition = selectedCardPositions.last {
-                    return abs(cardPosition.row - firstPosition.row) == 1 || 
-                           abs(cardPosition.row - lastPosition.row) == 1
-                }
-            case .diagonal(let slope, let intercept):
-                // For slope 1 (top-left to bottom-right): row - col = intercept
-                // For slope -1 (top-right to bottom-left): row + col = intercept
-                if slope == 1 {
-                    guard cardPosition.row - cardPosition.col == intercept else { return false }
-                } else {
-                    guard cardPosition.row + cardPosition.col == intercept else { return false }
-                }
-                
-                // Check if card is adjacent to any part of the selection
-                for position in selectedCardPositions {
-                    if abs(cardPosition.row - position.row) == 1 && 
-                       abs(cardPosition.col - position.col) == 1 {
-                        return true
-                    }
-                }
-                return false
-            }
-        }
-        
-        // For the second card selection, determine the line type
-        if selectedCards.count == 1 {
-            guard let firstCardPosition = findCardPosition(Array(selectedCards)[0]) else { return false }
-            
-            // Check if cards are in the same row and adjacent
-            if cardPosition.row == firstCardPosition.row {
-                if abs(cardPosition.col - firstCardPosition.col) == 1 {
-                    currentLineType = .row(cardPosition.row)
-                    return true
-                }
-            }
-            
-            // Check if cards are in the same column and adjacent
-            if cardPosition.col == firstCardPosition.col {
-                if abs(cardPosition.row - firstCardPosition.row) == 1 {
-                    currentLineType = .column(cardPosition.col)
-                    return true
-                }
-            }
-            
-            // Check if cards are on the same diagonal and adjacent
-            let topLeftIntercept = firstCardPosition.row - firstCardPosition.col
-            let topRightIntercept = firstCardPosition.row + firstCardPosition.col
-            
-            // Check if the second card is on either diagonal and adjacent
-            if cardPosition.row - cardPosition.col == topLeftIntercept {
-                if abs(cardPosition.row - firstCardPosition.row) == 1 && 
-                   abs(cardPosition.col - firstCardPosition.col) == 1 {
-                    currentLineType = .diagonal(slope: 1, intercept: topLeftIntercept)
-                    return true
-                }
-            }
-            
-            if cardPosition.row + cardPosition.col == topRightIntercept {
-                if abs(cardPosition.row - firstCardPosition.row) == 1 && 
-                   abs(cardPosition.col - firstCardPosition.col) == 1 {
-                    currentLineType = .diagonal(slope: -1, intercept: topRightIntercept)
-                    return true
-                }
+        // Check if the card is adjacent to any of the currently selected cards
+        for position in selectedCardPositions {
+            if isAdjacent(position1: cardPosition, position2: position) {
+                return true
             }
         }
         
         return false
+    }
+    
+    private func isAdjacent(position1: (row: Int, col: Int), position2: (row: Int, col: Int)) -> Bool {
+        let rowDiff = abs(position1.row - position2.row)
+        let colDiff = abs(position1.col - position2.col)
+        return rowDiff <= 1 && colDiff <= 1
     }
     
     private func updateEligibleCards() {
@@ -242,130 +183,10 @@ final class GameViewModel: ObservableObject {
             return
         }
         
-        // If we have a line type, show eligible cards based on selection count
-        if let lineType = currentLineType {
-            switch lineType {
-            case .row(let row):
-                // Get all positions in the row that are adjacent to the selection
-                let selectedCols = selectedCardPositions.map { $0.col }
-                let minCol = selectedCols.min() ?? 0
-                let maxCol = selectedCols.max() ?? 4
-                
-                // Add positions adjacent to the entire selection
-                let adjacentCols = [minCol - 1, maxCol + 1]
-                for col in adjacentCols where col >= 0 && col < 5 {
-                    if let card = cardAt(row: row, col: col) {
-                        eligibleCards.insert(card)
-                    }
-                }
-                
-            case .column(let col):
-                // Get all positions in the column that are adjacent to the selection
-                let selectedRows = selectedCardPositions.map { $0.row }
-                let minRow = selectedRows.min() ?? 0
-                let maxRow = selectedRows.max() ?? 4
-                
-                // Add positions adjacent to the entire selection
-                let adjacentRows = [minRow - 1, maxRow + 1]
-                for row in adjacentRows where row >= 0 && row < 5 {
-                    if let card = cardAt(row: row, col: col) {
-                        eligibleCards.insert(card)
-                    }
-                }
-                
-            case .diagonal(let slope, let intercept):
-                // Get all positions on the diagonal that are adjacent to the selection
-                let selectedPositions = selectedCardPositions
-                let minRow = selectedPositions.map { $0.row }.min() ?? 0
-                let maxRow = selectedPositions.map { $0.row }.max() ?? 4
-                let minCol = selectedPositions.map { $0.col }.min() ?? 0
-                let maxCol = selectedPositions.map { $0.col }.max() ?? 4
-                
-                // Calculate the direction of the diagonal
-                let rowStep = (maxRow - minRow).signum()
-                let colStep = (maxCol - minCol).signum()
-                
-                // Add positions adjacent to both ends of the selection
-                let firstAdjacent = (row: minRow - rowStep, col: minCol - colStep)
-                let lastAdjacent = (row: maxRow + rowStep, col: maxCol + colStep)
-                
-                let adjacentPositions = [firstAdjacent, lastAdjacent]
-                
-                // Also check positions adjacent to any card in the selection
-                for position in selectedPositions {
-                    let adjacentToPosition = [
-                        (row: position.row - 1, col: position.col - 1),
-                        (row: position.row - 1, col: position.col + 1),
-                        (row: position.row + 1, col: position.col - 1),
-                        (row: position.row + 1, col: position.col + 1)
-                    ]
-                    
-                    for adjPosition in adjacentToPosition where 
-                        adjPosition.row >= 0 && adjPosition.row < 5 && 
-                        adjPosition.col >= 0 && adjPosition.col < 5 {
-                        
-                        if slope == 1 {
-                            if adjPosition.row - adjPosition.col == intercept {
-                                if let card = cardAt(row: adjPosition.row, col: adjPosition.col) {
-                                    eligibleCards.insert(card)
-                                }
-                            }
-                        } else {
-                            if adjPosition.row + adjPosition.col == intercept {
-                                if let card = cardAt(row: adjPosition.row, col: adjPosition.col) {
-                                    eligibleCards.insert(card)
-                                }
-                            }
-                        }
-                    }
-                }
-                
-                // Add the end positions
-                for position in adjacentPositions where 
-                    position.row >= 0 && position.row < 5 && 
-                    position.col >= 0 && position.col < 5 {
-                    
-                    if slope == 1 {
-                        if position.row - position.col == intercept {
-                            if let card = cardAt(row: position.row, col: position.col) {
-                                eligibleCards.insert(card)
-                            }
-                        }
-                    } else {
-                        if position.row + position.col == intercept {
-                            if let card = cardAt(row: position.row, col: position.col) {
-                                eligibleCards.insert(card)
-                            }
-                        }
-                    }
-                }
-            }
-        } else if selectedCards.count == 1 {
-            // When only one card is selected and no line type is set,
-            // show all adjacent cards in all possible directions
-            guard let position = selectedCardPositions.first else { return }
-            
-            // Check adjacent positions in all directions
-            let adjacentPositions = [
-                // Row adjacent
-                (row: position.row, col: position.col - 1),
-                (row: position.row, col: position.col + 1),
-                // Column adjacent
-                (row: position.row - 1, col: position.col),
-                (row: position.row + 1, col: position.col),
-                // Diagonal adjacent
-                (row: position.row - 1, col: position.col - 1),
-                (row: position.row - 1, col: position.col + 1),
-                (row: position.row + 1, col: position.col - 1),
-                (row: position.row + 1, col: position.col + 1)
-            ]
-            
-            for position in adjacentPositions where 
-                position.row >= 0 && position.row < 5 && 
-                position.col >= 0 && position.col < 5 {
-                if let card = cardAt(row: position.row, col: position.col) {
-                    eligibleCards.insert(card)
-                }
+        // Find all cards adjacent to any selected card
+        for position in cardPositions {
+            if isCardEligibleForSelection(position.card) {
+                eligibleCards.insert(position.card)
             }
         }
         
@@ -404,12 +225,11 @@ final class GameViewModel: ObservableObject {
             
             // Animate the hand text before proceeding
             isAnimatingHandText = true
+            currentHandText = "\(handType.displayName) +\(handType.rawValue)"
             
             // Clear selection state immediately to prevent button from reappearing
             selectedCards.removeAll()
             selectedCardPositions.removeAll()
-            currentLineType = nil
-            currentHandText = nil
             
             // Get positions of selected cards
             let emptyPositions = selectedCardsArray.compactMap { card in
@@ -434,17 +254,22 @@ final class GameViewModel: ObservableObject {
                     let highestEmptyRow = positions.map { $0.0 }.min() ?? 0
                     print("🔍 Debug: Column \(col) - Highest empty row: \(highestEmptyRow)")
                     
+                    // Get all cards in this column that need to shift
                     let cardsToShift = cardPositions.filter { position in
                         position.currentCol == col && position.currentRow < highestEmptyRow
                     }.sorted { $0.currentRow < $1.currentRow }
                     
                     print("🔍 Debug: Cards to shift in column \(col): \(cardsToShift.count)")
                     
+                    // For each card that needs to shift
                     for cardPosition in cardsToShift {
+                        // Count how many empty positions are below this card
                         let emptyPositionsBelow = positions.filter { $0.0 > cardPosition.currentRow }.count
                         if let index = cardPositions.firstIndex(where: { $0.id == cardPosition.id }) {
-                            cardPositions[index].targetRow = cardPosition.currentRow + emptyPositionsBelow
-                            print("🔍 Debug: Shifting card from row \(cardPosition.currentRow) to \(cardPosition.currentRow + emptyPositionsBelow)")
+                            // Shift the card down by the number of empty positions below it
+                            let newRow = cardPosition.currentRow + emptyPositionsBelow
+                            cardPositions[index].targetRow = newRow
+                            print("🔍 Debug: Shifting card from row \(cardPosition.currentRow) to \(newRow)")
                         }
                     }
                 }
@@ -466,6 +291,14 @@ final class GameViewModel: ObservableObject {
                 }
             }
             
+            // Sort empty positions by column then row to ensure consistent filling
+            newEmptyPositions.sort { (pos1, pos2) in
+                if pos1.1 == pos2.1 {
+                    return pos1.0 < pos2.0
+                }
+                return pos1.1 < pos2.1
+            }
+            
             // Then, after animation completes, add new cards to the new empty positions
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.7), ({
@@ -474,14 +307,110 @@ final class GameViewModel: ObservableObject {
                     print("🔍 Debug: Remaining cards in deck: \(self.deck.count)")
                     print("🔍 Debug: New empty positions: \(newEmptyPositions)")
                     
+                    // Get all current cards sorted by column and row (bottom to top)
+                    let currentCards = self.cardPositions.sorted { 
+                        if $0.currentCol == $1.currentCol {
+                            return $0.currentRow > $1.currentRow
+                        }
+                        return $0.currentCol < $1.currentCol
+                    }
+                    
+                    // Remove all cards
+                    self.cardPositions.removeAll()
+                    
+                    // Create a grid to track occupied positions
+                    var occupiedPositions = Set<Int>()
+                    
+                    // First, try to place cards in their original columns, shifting down to fill gaps
+                    for col in 0..<5 {
+                        let columnCards = currentCards.filter { $0.currentCol == col }
+                        let columnEmptyPositions = newEmptyPositions.filter { $0.1 == col }
+                        
+                        if !columnCards.isEmpty {
+                            // Start from the bottom row and work up
+                            var currentRow = 4
+                            for cardPosition in columnCards {
+                                while currentRow >= 0 {
+                                    let position = (currentRow, col)
+                                    let positionHash = currentRow * 5 + col
+                                    // Only place card if position is not marked as empty (will be filled with new card)
+                                    if !columnEmptyPositions.contains(where: { $0.0 == position.0 && $0.1 == position.1 }) && !occupiedPositions.contains(positionHash) {
+                                        self.cardPositions.append(CardPosition(
+                                            card: cardPosition.card,
+                                            row: position.0,
+                                            col: position.1
+                                        ))
+                                        occupiedPositions.insert(positionHash)
+                                        currentRow -= 1
+                                        break
+                                    }
+                                    currentRow -= 1
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Then, fill any remaining gaps with cards from other columns
+                    let remainingCards = currentCards.filter { cardPosition in
+                        !self.cardPositions.contains { $0.card.id == cardPosition.card.id }
+                    }
+                    
+                    // Sort remaining cards by row (bottom to top)
+                    var sortedRemainingCards = remainingCards.sorted { $0.currentRow > $1.currentRow }
+                    
+                    // Fill gaps from bottom up
+                    for row in (0..<5).reversed() {
+                        for col in 0..<5 {
+                            let positionHash = row * 5 + col
+                            // Only fill if position is not occupied and not marked for new cards
+                            if !occupiedPositions.contains(positionHash) && !newEmptyPositions.contains(where: { $0.0 == row && $0.1 == col }) {
+                                if let cardPosition = sortedRemainingCards.first {
+                                    self.cardPositions.append(CardPosition(
+                                        card: cardPosition.card,
+                                        row: row,
+                                        col: col
+                                    ))
+                                    occupiedPositions.insert(positionHash)
+                                    sortedRemainingCards.removeFirst()
+                                    print("🔍 Debug: Filled gap at row \(row), col \(col) with card from another column")
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Finally, add new cards from the deck to the empty positions at the top
+                    var remainingEmptyPositions = newEmptyPositions
                     for position in newEmptyPositions {
                         if let card = self.deck.popLast() {
                             print("🔍 Debug: Adding new card at row \(position.0), col \(position.1)")
                             self.cardPositions.append(CardPosition(card: card, row: position.0, col: position.1))
+                            remainingEmptyPositions.removeAll { $0.0 == position.0 && $0.1 == position.1 }
                         } else {
                             print("🔍 Debug: No more cards in deck to add")
+                            break
                         }
                     }
+                    
+                    // If we have remaining empty positions and cards, shift cards down to fill them
+                    if !remainingEmptyPositions.isEmpty && !sortedRemainingCards.isEmpty {
+                        print("🔍 Debug: Shifting remaining cards to fill empty positions")
+                        // Sort remaining empty positions by row (bottom to top)
+                        let sortedEmptyPositions = remainingEmptyPositions.sorted { $0.0 > $1.0 }
+                        
+                        // Fill empty positions from bottom up with remaining cards
+                        for position in sortedEmptyPositions {
+                            if let cardPosition = sortedRemainingCards.first {
+                                self.cardPositions.append(CardPosition(
+                                    card: cardPosition.card,
+                                    row: position.0,
+                                    col: position.1
+                                ))
+                                sortedRemainingCards.removeFirst()
+                                print("🔍 Debug: Filled empty position at row \(position.0), col \(position.1) with remaining card")
+                            }
+                        }
+                    }
+                    
                     print("🔍 Debug: Final card count: \(self.cardPositions.count)")
                     
                     // Update eligible cards after adding new cards
@@ -489,9 +418,12 @@ final class GameViewModel: ObservableObject {
                 }))
             }
             
-            // Reset animation state after animation
+            // Reset animation state and clear hand text after animation
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                self.isAnimatingHandText = false
+                withAnimation(.easeOut(duration: 0.3)) {
+                    self.isAnimatingHandText = false
+                    self.currentHandText = nil
+                }
                 self.updateEligibleCards()
             }
             
@@ -504,11 +436,28 @@ final class GameViewModel: ObservableObject {
     }
     
     private func checkGameOver() {
-        // TODO: Implement proper game over check
-        // For now, just check if we have enough cards to continue
-        if deck.isEmpty {
-            isGameOver = true
+        // Check if there are any valid poker hands possible in the current grid
+        let allCards = cardPositions.map { $0.card }
+        print("🔍 Debug: Checking for valid poker hands with \(allCards.count) cards")
+        
+        // Check all possible combinations of 2-5 cards
+        for size in 2...5 {
+            let combinations = allCards.combinations(ofCount: size)
+            print("🔍 Debug: Checking combinations of size \(size), found \(combinations.count) combinations")
+            
+            for cards in combinations {
+                if let handType = PokerHandDetector.detectHand(cards: cards) {
+                    print("🔍 Debug: Found valid hand: \(handType.displayName)")
+                    // Found a valid poker hand, game is not over
+                    isGameOver = false
+                    return
+                }
+            }
         }
+        
+        print("🔍 Debug: No valid poker hands found, game is over")
+        // No valid poker hands found, game is over
+        isGameOver = true
     }
     
     /// Resets the game to its initial state

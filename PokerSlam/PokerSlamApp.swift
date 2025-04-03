@@ -21,9 +21,10 @@ struct PokerSlamApp: App {
 }
 
 // Global state manager
+@MainActor
 class GameState: ObservableObject {
-    @Published var currentScore: Int = 0
-    @Published var highScore: Int = 0
+    @Published private(set) var currentScore: Int = 0
+    @Published private(set) var highScore: Int = 0
     
     init() {
         // Load high score from UserDefaults
@@ -35,5 +36,10 @@ class GameState: ObservableObject {
             highScore = currentScore
             UserDefaults.standard.set(highScore, forKey: "highScore")
         }
+    }
+    
+    func updateCurrentScore(_ score: Int) {
+        currentScore = score
+        updateHighScore()
     }
 }

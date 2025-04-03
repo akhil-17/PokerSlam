@@ -16,6 +16,12 @@ struct GameView: View {
         .sheet(isPresented: $showingHandReference) {
             HandReferenceView()
         }
+        .onDisappear {
+            // Update high score if current score is higher
+            if viewModel.score > gameState.currentScore {
+                gameState.updateCurrentScore(viewModel.score)
+            }
+        }
     }
 }
 
@@ -95,16 +101,13 @@ private struct GameContainer: View {
                 // Custom Header
                 HStack {
                     Button(action: { 
-                        print("🔍 Debug: Close button tapped")
-                        print("🔍 Debug: Current score: \(viewModel.score), High score: \(gameState.currentScore)")
-                        // Update high score if current score is higher
-                        if viewModel.score > gameState.currentScore {
-                            print("🔍 Debug: Updating high score to \(viewModel.score)")
-                            gameState.currentScore = viewModel.score
+                        Task { @MainActor in
+                            // Update high score if current score is higher
+                            if viewModel.score > gameState.currentScore {
+                                gameState.updateCurrentScore(viewModel.score)
+                            }
+                            dismiss()
                         }
-                        print("🔍 Debug: Calling dismiss()")
-                        dismiss()
-                        print("🔍 Debug: After dismiss() call")
                     }) {
                         Image(systemName: "xmark.circle.fill")
                             .font(.title)
@@ -137,7 +140,7 @@ private struct GameContainer: View {
                 VStack(spacing: 0) {
                     if showIntroMessage && viewModel.currentHandText == nil && !viewModel.isGameOver {
                         HandFormationText(
-                            text: "Tap cards and select cards next to them to create poker hands in rows, columns, or diagonals",
+                            text: "Create poker hands with adjacent cards",
                             isAnimating: false,
                             isGameOver: false
                         )
@@ -160,11 +163,13 @@ private struct GameContainer: View {
                     ZStack {
                         if viewModel.isGameOver {
                             Button(action: {
-                                // Update high score if current score is higher
-                                if viewModel.score > gameState.currentScore {
-                                    gameState.currentScore = viewModel.score
+                                Task { @MainActor in
+                                    // Update high score if current score is higher
+                                    if viewModel.score > gameState.currentScore {
+                                        gameState.updateCurrentScore(viewModel.score)
+                                    }
+                                    viewModel.resetGame()
                                 }
-                                viewModel.resetGame()
                             }) {
                                 Text("Play Again")
                                     .font(.headline)
@@ -176,7 +181,9 @@ private struct GameContainer: View {
                             .padding()
                         } else if viewModel.selectedCards.count >= 2 {
                             Button(action: {
-                                viewModel.playHand()
+                                Task { @MainActor in
+                                    viewModel.playHand()
+                                }
                             }) {
                                 Text("Play Hand")
                                     .font(.headline)
@@ -204,9 +211,9 @@ private struct CardGridView: View {
     @ObservedObject var viewModel: GameViewModel
     
     var body: some View {
-        VStack(spacing: 8) {
+        LazyVStack(spacing: 8) {
             ForEach(0..<5, id: \.self) { row in
-                HStack(spacing: 8) {
+                LazyHStack(spacing: 8) {
                     ForEach(0..<5, id: \.self) { col in
                         if let cardPosition = viewModel.cardPositions.first(where: { $0.currentRow == row && $0.currentCol == col }) {
                             CardView(
@@ -214,7 +221,11 @@ private struct CardGridView: View {
                                 isSelected: viewModel.selectedCards.contains(cardPosition.card),
                                 isEligible: viewModel.eligibleCards.contains(cardPosition.card),
                                 isInteractive: viewModel.areCardsInteractive,
-                                onTap: { viewModel.selectCard(cardPosition.card) }
+                                onTap: { 
+                                    Task { @MainActor in
+                                        viewModel.selectCard(cardPosition.card)
+                                    }
+                                }
                             )
                             .offset(
                                 x: CGFloat(cardPosition.currentCol - cardPosition.targetCol) * 68,
@@ -237,7 +248,9 @@ private struct CardGridView: View {
         .contentShape(Rectangle())
         .onTapGesture {
             if !viewModel.selectedCards.isEmpty && viewModel.areCardsInteractive {
-                viewModel.unselectAllCards()
+                Task { @MainActor in
+                    viewModel.unselectAllCards()
+                }
             }
         }
     }
@@ -338,7 +351,7 @@ struct HandReferenceView: View {
                         HandReferenceRow(
                             title: "One Pair",
                             description: "Two cards of same rank (e.g., 2♠ 2♥)",
-                            score: "5"
+                            score: "15"
                         )
                     }
                     .padding()

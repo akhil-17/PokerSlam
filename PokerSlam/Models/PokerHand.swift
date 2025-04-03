@@ -23,7 +23,7 @@ enum HandType: Int, Comparable {
     case miniStraight = 35
     
     // 2-card hands (lowest scoring)
-    case onePair = 5
+    case onePair = 15
     
     var displayName: String {
         switch self {
@@ -237,7 +237,7 @@ struct PokerHandDetector {
             }
             if isAceHighStraight { return true }
             
-            // Check for Ace as bridge (K,Q,A,2,3)
+            // Check for Ace-bridge straight (Q,K,A,2,3)
             let aceBridgeRanks = ranks.map { $0 == 1 ? 0 : $0 } // Convert Ace to 0 for bridge case
             let sortedAceBridgeRanks = aceBridgeRanks.sorted()
             
@@ -271,7 +271,7 @@ struct PokerHandDetector {
         }
         if isRegularStraight { return true }
         
-        // Check for Ace-high straight (J,Q,K,A)
+        // Check for Ace-high straight (10,J,Q,K,A)
         if ranks.contains(1) { // Ace
             let aceHighRanks = ranks.map { $0 == 1 ? 14 : $0 }
             let sortedAceHighRanks = aceHighRanks.sorted()
@@ -285,7 +285,7 @@ struct PokerHandDetector {
             }
             if isAceHighStraight { return true }
             
-            // Check for Ace as bridge (Q,K,A,2)
+            // Check for Ace-bridge straight (Q,K,A,2)
             let aceBridgeRanks = ranks.map { $0 == 1 ? 0 : $0 } // Convert Ace to 0 for bridge case
             let sortedAceBridgeRanks = aceBridgeRanks.sorted()
             
