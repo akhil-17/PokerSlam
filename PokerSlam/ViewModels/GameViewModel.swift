@@ -19,6 +19,17 @@ struct CardPosition: Identifiable {
     }
 }
 
+/// Represents a position in the grid
+private struct GridPosition: Hashable {
+    let row: Int
+    let col: Int
+    
+    init(row: Int, col: Int) {
+        self.row = row
+        self.col = col
+    }
+}
+
 extension Array {
     func combinations(ofCount count: Int) -> [[Element]] {
         guard count > 0 && count <= self.count else { return [] }
@@ -169,7 +180,31 @@ final class GameViewModel: ObservableObject {
     private func isAdjacent(position1: (row: Int, col: Int), position2: (row: Int, col: Int)) -> Bool {
         let rowDiff = abs(position1.row - position2.row)
         let colDiff = abs(position1.col - position2.col)
-        return rowDiff <= 1 && colDiff <= 1
+        
+        // If cards are in the same column, they're adjacent if they're one row apart
+        if position1.col == position2.col {
+            return rowDiff <= 1
+        }
+        
+        // If cards are in adjacent columns (no empty columns between them)
+        if colDiff == 1 {
+            // Check if there are any cards in the columns between these positions
+            let minCol = min(position1.col, position2.col)
+            let maxCol = max(position1.col, position2.col)
+            
+            // For each column between the cards, check if it has any cards
+            for col in (minCol + 1)..<maxCol {
+                if !cardPositions.contains(where: { $0.currentCol == col }) {
+                    return false
+                }
+            }
+            
+            // If no empty columns between them, they're adjacent if they're one row apart
+            return rowDiff <= 1
+        }
+        
+        // If cards are not in adjacent columns, they're not adjacent
+        return false
     }
     
     private func updateEligibleCards() {
@@ -249,27 +284,68 @@ final class GameViewModel: ObservableObject {
             // First, shift existing cards down
             withAnimation(.spring(response: 0.3, dampingFraction: 0.7), ({
                 shiftFeedback.impactOccurred()
-                // Update target positions for shifting
-                for (col, positions) in Dictionary(grouping: emptyPositions, by: { pos in pos.1 }) {
-                    let highestEmptyRow = positions.map { $0.0 }.min() ?? 0
-                    print("🔍 Debug: Column \(col) - Highest empty row: \(highestEmptyRow)")
+                
+                // For each column, handle card shifting independently
+                for col in 0..<5 {
+                    // Get all cards in this column, sorted from bottom to top
+                    let columnCards = cardPositions.filter { $0.currentCol == col }
+                        .sorted { $0.currentRow > $1.currentRow }
                     
-                    // Get all cards in this column that need to shift
-                    let cardsToShift = cardPositions.filter { position in
-                        position.currentCol == col && position.currentRow < highestEmptyRow
-                    }.sorted { $0.currentRow < $1.currentRow }
+                    // Get empty positions in this column
+                    let columnEmptyPositions = emptyPositions.filter { $0.1 == col }
+                        .map { $0.0 }
+                        .sorted()
                     
-                    print("🔍 Debug: Cards to shift in column \(col): \(cardsToShift.count)")
-                    
-                    // For each card that needs to shift
-                    for cardPosition in cardsToShift {
-                        // Count how many empty positions are below this card
-                        let emptyPositionsBelow = positions.filter { $0.0 > cardPosition.currentRow }.count
-                        if let index = cardPositions.firstIndex(where: { $0.id == cardPosition.id }) {
-                            // Shift the card down by the number of empty positions below it
-                            let newRow = cardPosition.currentRow + emptyPositionsBelow
-                            cardPositions[index].targetRow = newRow
-                            print("🔍 Debug: Shifting card from row \(cardPosition.currentRow) to \(newRow)")
+                    if !columnEmptyPositions.isEmpty {
+                        print("🔍 Debug: Processing column \(col) with \(columnCards.count) cards and \(columnEmptyPositions.count) empty positions")
+                        
+                        // Skip processing if column is empty
+                        guard !columnCards.isEmpty else {
+                            print("🔍 Debug: Column \(col) is empty, skipping processing")
+                            continue
+                        }
+                        
+                        // Calculate the total number of empty positions below each card
+                        var emptyPositionsBelow: [UUID: Int] = [:]
+                        for cardPosition in columnCards {
+                            let emptyCount = columnEmptyPositions.filter { $0 > cardPosition.currentRow }.count
+                            emptyPositionsBelow[cardPosition.id] = emptyCount
+                        }
+                        
+                        // Shift cards down based on empty positions below them
+                        for cardPosition in columnCards {
+                            if let cardIndex = cardPositions.firstIndex(where: { $0.id == cardPosition.id }),
+                               let emptyCount = emptyPositionsBelow[cardPosition.id],
+                               emptyCount > 0 {
+                                let newRow = cardPosition.currentRow + emptyCount
+                                print("🔍 Debug: Shifting card in column \(col) from row \(cardPosition.currentRow) to \(newRow)")
+                                cardPositions[cardIndex].targetRow = newRow
+                            }
+                        }
+                        
+                        // After shifting, verify no gaps remain in this column
+                        let columnCardsAfterShift = cardPositions.filter { $0.currentCol == col }
+                            .sorted { $0.currentRow > $1.currentRow }
+                        
+                        // Only check for gaps if we have at least 2 cards
+                        if columnCardsAfterShift.count >= 2 {
+                            // Check for gaps between cards
+                            for i in 0..<(columnCardsAfterShift.count - 1) {
+                                let currentRow = columnCardsAfterShift[i].currentRow
+                                let nextRow = columnCardsAfterShift[i + 1].currentRow
+                                if nextRow - currentRow > 1 {
+                                    print("🔍 Debug: Found gap in column \(col) between rows \(currentRow) and \(nextRow)")
+                                    // Shift all cards above the gap down
+                                    for j in (i + 1)..<columnCardsAfterShift.count {
+                                        if let cardIndex = cardPositions.firstIndex(where: { $0.id == columnCardsAfterShift[j].id }) {
+                                            let shiftAmount = nextRow - currentRow - 1
+                                            let newRow = columnCardsAfterShift[j].currentRow - shiftAmount
+                                            print("🔍 Debug: Shifting card in column \(col) from row \(columnCardsAfterShift[j].currentRow) to \(newRow)")
+                                            cardPositions[cardIndex].targetRow = newRow
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -279,22 +355,39 @@ final class GameViewModel: ObservableObject {
                     cardPositions[index].currentRow = cardPositions[index].targetRow
                     cardPositions[index].currentCol = cardPositions[index].targetCol
                 }
+                
+                // Verify grid is complete
+                let expectedCardCount = 25
+                if cardPositions.count != expectedCardCount {
+                    print("🔍 Debug: Grid incomplete after shifting. Expected \(expectedCardCount) cards, got \(cardPositions.count)")
+                }
             }))
             
             // Calculate new empty positions at the top of each column
             var newEmptyPositions: [(Int, Int)] = []
-            for (col, positions) in Dictionary(grouping: emptyPositions, by: { pos in pos.1 }) {
-                let cardsRemovedFromColumn = positions.count
-                // Add positions from top down for the number of cards removed
-                for row in 0..<cardsRemovedFromColumn {
-                    newEmptyPositions.append((row, col))
+            
+            // Get all current positions that have cards
+            let currentPositions = Set(cardPositions.map { GridPosition(row: $0.currentRow, col: $0.currentCol) })
+            
+            // For each column, find empty positions from bottom to top
+            for col in 0..<5 {
+                // First, find empty positions from bottom to top (excluding row 0)
+                for row in (1..<5).reversed() {
+                    if !currentPositions.contains(GridPosition(row: row, col: col)) {
+                        newEmptyPositions.append((row, col))
+                    }
+                }
+                
+                // If row 0 is empty, add it last
+                if !currentPositions.contains(GridPosition(row: 0, col: col)) {
+                    newEmptyPositions.append((0, col))
                 }
             }
             
             // Sort empty positions by column then row to ensure consistent filling
             newEmptyPositions.sort { (pos1, pos2) in
                 if pos1.1 == pos2.1 {
-                    return pos1.0 < pos2.0
+                    return pos1.0 > pos2.0  // Sort rows in descending order (bottom to top)
                 }
                 return pos1.1 < pos2.1
             }
@@ -307,107 +400,14 @@ final class GameViewModel: ObservableObject {
                     print("🔍 Debug: Remaining cards in deck: \(self.deck.count)")
                     print("🔍 Debug: New empty positions: \(newEmptyPositions)")
                     
-                    // Get all current cards sorted by column and row (bottom to top)
-                    let currentCards = self.cardPositions.sorted { 
-                        if $0.currentCol == $1.currentCol {
-                            return $0.currentRow > $1.currentRow
-                        }
-                        return $0.currentCol < $1.currentCol
-                    }
-                    
-                    // Remove all cards
-                    self.cardPositions.removeAll()
-                    
-                    // Create a grid to track occupied positions
-                    var occupiedPositions = Set<Int>()
-                    
-                    // First, try to place cards in their original columns, shifting down to fill gaps
-                    for col in 0..<5 {
-                        let columnCards = currentCards.filter { $0.currentCol == col }
-                        let columnEmptyPositions = newEmptyPositions.filter { $0.1 == col }
-                        
-                        if !columnCards.isEmpty {
-                            // Start from the bottom row and work up
-                            var currentRow = 4
-                            for cardPosition in columnCards {
-                                while currentRow >= 0 {
-                                    let position = (currentRow, col)
-                                    let positionHash = currentRow * 5 + col
-                                    // Only place card if position is not marked as empty (will be filled with new card)
-                                    if !columnEmptyPositions.contains(where: { $0.0 == position.0 && $0.1 == position.1 }) && !occupiedPositions.contains(positionHash) {
-                                        self.cardPositions.append(CardPosition(
-                                            card: cardPosition.card,
-                                            row: position.0,
-                                            col: position.1
-                                        ))
-                                        occupiedPositions.insert(positionHash)
-                                        currentRow -= 1
-                                        break
-                                    }
-                                    currentRow -= 1
-                                }
-                            }
-                        }
-                    }
-                    
-                    // Then, fill any remaining gaps with cards from other columns
-                    let remainingCards = currentCards.filter { cardPosition in
-                        !self.cardPositions.contains { $0.card.id == cardPosition.card.id }
-                    }
-                    
-                    // Sort remaining cards by row (bottom to top)
-                    var sortedRemainingCards = remainingCards.sorted { $0.currentRow > $1.currentRow }
-                    
-                    // Fill gaps from bottom up
-                    for row in (0..<5).reversed() {
-                        for col in 0..<5 {
-                            let positionHash = row * 5 + col
-                            // Only fill if position is not occupied and not marked for new cards
-                            if !occupiedPositions.contains(positionHash) && !newEmptyPositions.contains(where: { $0.0 == row && $0.1 == col }) {
-                                if let cardPosition = sortedRemainingCards.first {
-                                    self.cardPositions.append(CardPosition(
-                                        card: cardPosition.card,
-                                        row: row,
-                                        col: col
-                                    ))
-                                    occupiedPositions.insert(positionHash)
-                                    sortedRemainingCards.removeFirst()
-                                    print("🔍 Debug: Filled gap at row \(row), col \(col) with card from another column")
-                                }
-                            }
-                        }
-                    }
-                    
-                    // Finally, add new cards from the deck to the empty positions at the top
-                    var remainingEmptyPositions = newEmptyPositions
+                    // Add new cards from the deck to the empty positions at the top
                     for position in newEmptyPositions {
                         if let card = self.deck.popLast() {
                             print("🔍 Debug: Adding new card at row \(position.0), col \(position.1)")
                             self.cardPositions.append(CardPosition(card: card, row: position.0, col: position.1))
-                            remainingEmptyPositions.removeAll { $0.0 == position.0 && $0.1 == position.1 }
                         } else {
                             print("🔍 Debug: No more cards in deck to add")
                             break
-                        }
-                    }
-                    
-                    // If we have remaining empty positions and cards, shift cards down to fill them
-                    if !remainingEmptyPositions.isEmpty && !sortedRemainingCards.isEmpty {
-                        print("🔍 Debug: Shifting remaining cards to fill empty positions")
-                        // Sort remaining empty positions by row (bottom to top)
-                        let sortedEmptyPositions = remainingEmptyPositions.sorted { $0.0 > $1.0 }
-                        
-                        // Fill empty positions from bottom up with remaining cards
-                        for position in sortedEmptyPositions {
-                            if let cardPosition = sortedRemainingCards.first {
-                                self.cardPositions.append(CardPosition(
-                                    card: cardPosition.card,
-                                    row: position.0,
-                                    col: position.1
-                                ))
-                                sortedRemainingCards.removeFirst()
-                                print("🔍 Debug: Filled empty position at row \(position.0), col \(position.1) with remaining card")
-                            }
                         }
                     }
                     
@@ -415,6 +415,9 @@ final class GameViewModel: ObservableObject {
                     
                     // Update eligible cards after adding new cards
                     self.updateEligibleCards()
+                    
+                    // Check if game is over after all cards are in place
+                    self.checkGameOver()
                 }))
             }
             
@@ -426,9 +429,6 @@ final class GameViewModel: ObservableObject {
                 }
                 self.updateEligibleCards()
             }
-            
-            // Check if game is over
-            checkGameOver()
         } else {
             lastPlayedHand = nil
             errorFeedback.notificationOccurred(.error)
@@ -440,15 +440,100 @@ final class GameViewModel: ObservableObject {
         let allCards = cardPositions.map { $0.card }
         print("🔍 Debug: Checking for valid poker hands with \(allCards.count) cards")
         
-        // Check all possible combinations of 2-5 cards
+        // If we have no cards in the deck and less than 25 cards in the grid,
+        // we should check if any valid hands are possible with the remaining cards
+        if deck.isEmpty && cardPositions.count < 25 {
+            print("🔍 Debug: No more cards in deck, checking remaining cards for valid hands")
+            
+            // Check all possible combinations of 2-5 cards
+            for size in 2...5 {
+                let combinations = allCards.combinations(ofCount: size)
+                print("🔍 Debug: Checking combinations of size \(size), found \(combinations.count) combinations")
+                
+                for cards in combinations {
+                    // First check if these cards can be selected according to adjacency rules
+                    var canBeSelected = true
+                    var selectedPositions: [(row: Int, col: Int)] = []
+                    
+                    // Try to select the first card
+                    if let firstPosition = findCardPosition(cards[0]) {
+                        selectedPositions.append(firstPosition)
+                        
+                        // Try to select each subsequent card
+                        for i in 1..<cards.count {
+                            if let position = findCardPosition(cards[i]) {
+                                // Check if this card is adjacent to any already selected card
+                                var isAdjacentToAny = false
+                                for selectedPosition in selectedPositions {
+                                    if isAdjacent(position1: position, position2: selectedPosition) {
+                                        isAdjacentToAny = true
+                                        break
+                                    }
+                                }
+                                
+                                if isAdjacentToAny {
+                                    selectedPositions.append(position)
+                                } else {
+                                    canBeSelected = false
+                                    break
+                                }
+                            }
+                        }
+                    }
+                    
+                    // If we can select all cards and they form a valid hand, game is not over
+                    if canBeSelected, let handType = PokerHandDetector.detectHand(cards: cards) {
+                        print("🔍 Debug: Found valid hand: \(handType.displayName)")
+                        isGameOver = false
+                        return
+                    }
+                }
+            }
+            
+            print("🔍 Debug: No valid poker hands found with remaining cards, game is over")
+            isGameOver = true
+            return
+        }
+        
+        // Normal case: check all possible combinations
         for size in 2...5 {
             let combinations = allCards.combinations(ofCount: size)
             print("🔍 Debug: Checking combinations of size \(size), found \(combinations.count) combinations")
             
             for cards in combinations {
-                if let handType = PokerHandDetector.detectHand(cards: cards) {
+                // First check if these cards can be selected according to adjacency rules
+                var canBeSelected = true
+                var selectedPositions: [(row: Int, col: Int)] = []
+                
+                // Try to select the first card
+                if let firstPosition = findCardPosition(cards[0]) {
+                    selectedPositions.append(firstPosition)
+                    
+                    // Try to select each subsequent card
+                    for i in 1..<cards.count {
+                        if let position = findCardPosition(cards[i]) {
+                            // Check if this card is adjacent to any already selected card
+                            var isAdjacentToAny = false
+                            for selectedPosition in selectedPositions {
+                                if isAdjacent(position1: position, position2: selectedPosition) {
+                                    isAdjacentToAny = true
+                                    break
+                                }
+                            }
+                            
+                            if isAdjacentToAny {
+                                selectedPositions.append(position)
+                            } else {
+                                canBeSelected = false
+                                break
+                            }
+                        }
+                    }
+                }
+                
+                // If we can select all cards and they form a valid hand, game is not over
+                if canBeSelected, let handType = PokerHandDetector.detectHand(cards: cards) {
                     print("🔍 Debug: Found valid hand: \(handType.displayName)")
-                    // Found a valid poker hand, game is not over
                     isGameOver = false
                     return
                 }
@@ -456,7 +541,6 @@ final class GameViewModel: ObservableObject {
         }
         
         print("🔍 Debug: No valid poker hands found, game is over")
-        // No valid poker hands found, game is over
         isGameOver = true
     }
     
